@@ -114,9 +114,19 @@ jobs:
           release_dark="$release_set/1024-dark.png"
           debug_icon="$debug_set/1024.png"
           debug_dark="$debug_set/1024-dark.png"
+          build_settings="$RUNNER_TEMP/soulnest-debug-build-settings.txt"
 
           plutil -lint apps/ios/Sources/Info.plist
-          grep -Fq '<string>SoulNest</string>' apps/ios/Sources/Info.plist
+          xcodebuild \
+            -project apps/ios/OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -showBuildSettings > "$build_settings"
+          grep -Eq '^[[:space:]]*INFOPLIST_KEY_CFBundleDisplayName = SoulNest$' "$build_settings"
+          grep -Eq '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = com\.wildenstudio\.soulnest\.debug$' "$build_settings"
+          grep -Eq '^[[:space:]]*OPENCLAW_URL_SCHEME = soulnest-debug$' "$build_settings"
+          grep -Eq '^[[:space:]]*OPENCLAW_APP_GROUP_ID = group\.com\.wildenstudio\.soulnest\.shared$' "$build_settings"
           grep -Fq 'OPENCLAW_APP_BUNDLE_ID = com.wildenstudio.soulnest' apps/ios/Signing.xcconfig
           grep -Fq 'OPENCLAW_APP_GROUP_ID = group.com.wildenstudio.soulnest.shared' apps/ios/Signing.xcconfig
           grep -Fq '"value": "dark"' "$release_set/Contents.json"
