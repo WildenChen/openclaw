@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 master_generator="$root/scripts/generate-soulnest-master-icons.swift"
+normalizer="$root/scripts/normalize-soulnest-icon-png.swift"
 release_source="$root/Sources/Assets.xcassets/AppIcon.appiconset/1024.png"
 debug_source="$root/Sources/Assets.xcassets/AppIconDebug.appiconset/1024.png"
 release_watch="$root/WatchApp/Assets.xcassets/AppIcon.appiconset"
@@ -18,14 +19,17 @@ command -v sips >/dev/null 2>&1 || {
   exit 1
 }
 
-test -f "$master_generator" || {
-  echo "error: missing SoulNest icon generator: $master_generator" >&2
-  exit 1
-}
+for script in "$master_generator" "$normalizer"; do
+  test -f "$script" || {
+    echo "error: missing SoulNest icon script: $script" >&2
+    exit 1
+  }
+done
 
 # Render deterministic 1024×1024 PNG masters from the checked-in CoreGraphics
-# source before deriving the platform-specific variants.
+# source, then remove the alpha channel required to be absent from App Store icons.
 xcrun swift "$master_generator" "$release_source" "$debug_source"
+xcrun swift "$normalizer" "$release_source" "$debug_source"
 
 for source in "$release_source" "$debug_source"; do
   test -s "$source" || {
@@ -65,4 +69,4 @@ generate_watch_set() {
 generate_watch_set "$release_source" "$release_watch"
 generate_watch_set "$debug_source" "$debug_watch"
 
-echo "Generated SoulNest Release and Debug iOS and Apple Watch icons."
+echo "Generated opaque SoulNest Release and Debug iOS and Apple Watch icons."
