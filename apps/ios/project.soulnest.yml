@@ -12,6 +12,7 @@ targets:
   OpenClaw:
     settings:
       base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
         OPENCLAW_URL_SCHEME: soulnest
       configs:
         Debug:
@@ -42,6 +43,7 @@ targets:
   OpenClawShareExtension:
     settings:
       base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Share
         PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.share
       configs:
         Debug:
@@ -55,6 +57,7 @@ targets:
   OpenClawActivityWidget:
     settings:
       base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Activity
         PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.activitywidget
       configs:
         Debug:
@@ -68,6 +71,7 @@ targets:
   OpenClawWatchApp:
     settings:
       base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
         OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest
         PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.watchkitapp
       configs:
