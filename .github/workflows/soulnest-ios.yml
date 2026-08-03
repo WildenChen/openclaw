@@ -185,6 +185,7 @@ jobs:
           echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
 
       - name: Run SoulNest core unit tests
+        working-directory: apps/ios
         run: |
           set -euo pipefail
           device_id="${{ steps.ios_device.outputs.device_id }}"
