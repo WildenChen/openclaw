@@ -12,6 +12,7 @@ targets:
   OpenClaw:
     settings:
       base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
         OPENCLAW_URL_SCHEME: soulnest
       configs:
         Debug:
@@ -40,16 +41,25 @@ targets:
         NSSpeechRecognitionUsageDescription: SoulNest uses on-device speech recognition for talk mode and voice wake.
 
   OpenClawShareExtension:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Share
     info:
       properties:
         CFBundleDisplayName: SoulNest Share
 
   OpenClawActivityWidget:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Activity
     info:
       properties:
         CFBundleDisplayName: SoulNest Activity
 
   OpenClawWatchApp:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
     info:
       properties:
         CFBundleDisplayName: SoulNest
