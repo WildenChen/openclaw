@@ -184,11 +184,33 @@ jobs:
           trap 'xcrun simctl shutdown "$device_id" >/dev/null 2>&1 || true' EXIT
           xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$device_id" -b
-          app_path="$RUNNER_TEMP/SoulNestDerivedData/Build/Products/Debug-iphonesimulator/OpenClaw.app"
-          test -d "$app_path"
-          test "$(plutil -extract CFBundleDisplayName raw "$app_path/Info.plist")" = "SoulNest"
-          test "$(plutil -extract CFBundleIdentifier raw "$app_path/Info.plist")" = "com.wildenstudio.soulnest.debug"
-          xcrun simctl install "$device_id" "$app_path"
-          launch_output="$(xcrun simctl launch "$device_id" com.wildenstudio.soulnest.debug)"
+
+          products_dir="$RUNNER_TEMP/SoulNestDerivedData/Build/Products/Debug-iphonesimulator"
+          build_app_path="$(find "$products_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$build_app_path"
+          test -d "$build_app_path"
+
+          # Xcode may hardlink identical Swift package frameworks across the app and
+          # extension bundles in DerivedData. CoreSimulator can reject that layout
+          # while creating extension placeholders, so install a byte-for-byte copy
+          # made without rsync's hardlink-preservation option.
+          install_app_path="$RUNNER_TEMP/SoulNestInstall.app"
+          rm -rf "$install_app_path"
+          mkdir -p "$install_app_path"
+          rsync -a "$build_app_path/" "$install_app_path/"
+
+          test "$(plutil -extract CFBundleDisplayName raw "$install_app_path/Info.plist")" = "SoulNest"
+          bundle_id="$(plutil -extract CFBundleIdentifier raw "$install_app_path/Info.plist")"
+          test "$bundle_id" = "com.wildenstudio.soulnest.debug"
+
+          remaining_hardlink="$(find "$install_app_path" -type f -links +1 -print -quit)"
+          if [[ -n "$remaining_hardlink" ]]; then
+            echo "error: copied app still contains hardlinked files: $remaining_hardlink" >&2
+            find "$install_app_path" -type f -links +1 -print | head -n 20 >&2
+            exit 1
+          fi
+
+          xcrun simctl install "$device_id" "$install_app_path"
+          launch_output="$(xcrun simctl launch "$device_id" "$bundle_id")"
           echo "$launch_output"
-          grep -Fq 'com.wildenstudio.soulnest.debug:' <<<"$launch_output"
+          grep -Fq "$bundle_id:" <<<"$launch_output"
