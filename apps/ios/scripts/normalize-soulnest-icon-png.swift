@@ -1,7 +1,9 @@
 #!/usr/bin/env swift
 
-import AppKit
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 private enum NormalizeError: Error, CustomStringConvertible {
     case invalidArguments
@@ -19,59 +21,69 @@ private enum NormalizeError: Error, CustomStringConvertible {
         case let .invalidImage(url):
             return "invalid PNG image: \(url.path)"
         case let .bitmapCreation(url):
-            return "unable to create RGB bitmap for \(url.path)"
+            return "unable to create opaque RGB context for \(url.path)"
         case let .pngEncoding(url):
-            return "unable to encode RGB PNG for \(url.path)"
+            return "unable to encode opaque RGB PNG for \(url.path)"
         }
     }
 }
 
 private func normalize(_ url: URL) throws {
-    guard let data = try? Data(contentsOf: url) else {
+    guard FileManager.default.isReadableFile(atPath: url.path),
+          let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let sourceImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
+    else {
         throw NormalizeError.unreadable(url)
     }
-    guard let source = NSBitmapImageRep(data: data),
-          let sourceImage = source.cgImage
-    else {
+
+    guard sourceImage.width > 0, sourceImage.height > 0 else {
         throw NormalizeError.invalidImage(url)
     }
 
-    guard let destination = NSBitmapImageRep(
-        bitmapDataPlanes: nil,
-        pixelsWide: source.pixelsWide,
-        pixelsHigh: source.pixelsHigh,
-        bitsPerSample: 8,
-        samplesPerPixel: 3,
-        hasAlpha: false,
-        isPlanar: false,
-        colorSpaceName: .deviceRGB,
-        bitmapFormat: [],
-        bytesPerRow: 0,
-        bitsPerPixel: 24),
-        let graphics = NSGraphicsContext(bitmapImageRep: destination)
+    let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo.byteOrder32Big.union(
+        CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue))
+    guard let context = CGContext(
+        data: nil,
+        width: sourceImage.width,
+        height: sourceImage.height,
+        bitsPerComponent: 8,
+        bytesPerRow: sourceImage.width * 4,
+        space: colorSpace,
+        bitmapInfo: bitmapInfo.rawValue)
     else {
         throw NormalizeError.bitmapCreation(url)
     }
 
-    destination.size = NSSize(width: source.pixelsWide, height: source.pixelsHigh)
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = graphics
-    let context = graphics.cgContext
+    let bounds = CGRect(x: 0, y: 0, width: sourceImage.width, height: sourceImage.height)
     context.interpolationQuality = .high
-    context.setFillColor(NSColor.black.cgColor)
-    let bounds = CGRect(x: 0, y: 0, width: source.pixelsWide, height: source.pixelsHigh)
+    context.setFillColor(CGColor(gray: 0, alpha: 1))
     context.fill(bounds)
     context.draw(sourceImage, in: bounds)
-    graphics.flushGraphics()
-    NSGraphicsContext.restoreGraphicsState()
 
-    guard let normalized = destination.representation(
-        using: .png,
-        properties: [.compressionFactor: 1])
+    guard let normalizedImage = context.makeImage() else {
+        throw NormalizeError.bitmapCreation(url)
+    }
+
+    let temporaryURL = url.deletingLastPathComponent()
+        .appendingPathComponent(".soulnest-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+    guard let destination = CGImageDestinationCreateWithURL(
+        temporaryURL as CFURL,
+        UTType.png.identifier as CFString,
+        1,
+        nil)
     else {
         throw NormalizeError.pngEncoding(url)
     }
-    try normalized.write(to: url, options: .atomic)
+
+    CGImageDestinationAddImage(destination, normalizedImage, nil)
+    guard CGImageDestinationFinalize(destination) else {
+        throw NormalizeError.pngEncoding(url)
+    }
+
+    _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL)
 }
 
 do {
