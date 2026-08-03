@@ -25,8 +25,8 @@ final class SoulNestConversationSessionStore {
 
     init(
         defaults: UserDefaults = .standard,
-        now: @escaping () -> Date = Date.init,
-        makeUUID: @escaping () -> UUID = UUID.init)
+        now: @escaping () -> Date = { Date() },
+        makeUUID: @escaping () -> UUID = { UUID() })
     {
         self.defaults = defaults
         self.now = now
