@@ -1,0 +1,107 @@
+name: SoulNest iOS
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/soulnest-ios.yml"
+      - "apps/ios/**"
+      - "apps/shared/**"
+      - "apps/swabble/**"
+      - "config/swiftformat"
+      - "scripts/check-swift-tools.sh"
+      - "scripts/install-swift-tools.sh"
+      - "scripts/ios-*.sh"
+      - "scripts/ios-*.mjs"
+      - "scripts/ios-*.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/soulnest-ios.yml"
+      - "apps/ios/**"
+      - "apps/shared/**"
+      - "apps/swabble/**"
+      - "config/swiftformat"
+      - "scripts/check-swift-tools.sh"
+      - "scripts/install-swift-tools.sh"
+      - "scripts/ios-*.sh"
+      - "scripts/ios-*.mjs"
+      - "scripts/ios-*.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soulnest-ios-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-build:
+    name: iOS Simulator Build
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Report toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+          node --version
+
+      - name: Install XcodeGen and pinned Swift tools
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          swift_tools="$RUNNER_TEMP/soulnest-swift-tools"
+          ./scripts/install-swift-tools.sh "$swift_tools"
+          echo "$swift_tools" >> "$GITHUB_PATH"
+          xcodegen --version
+          "$swift_tools/swiftformat" --version
+          "$swift_tools/swiftlint" version
+
+      - name: Prepare generated iOS metadata
+        run: |
+          set -euo pipefail
+          ./scripts/ios-write-version-xcconfig.sh
+          node scripts/ios-write-swift-filelist.mjs
+
+      - name: Generate SoulNest project and icon variants
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          ./generate-soulnest-project.sh
+
+      - name: Validate SoulNest brand identity
+        run: |
+          set -euo pipefail
+          plutil -lint apps/ios/Sources/Info.plist
+          grep -Fq '<string>SoulNest</string>' apps/ios/Sources/Info.plist
+          grep -Fq 'OPENCLAW_APP_BUNDLE_ID = com.wildenstudio.soulnest' apps/ios/Signing.xcconfig
+          grep -Fq 'OPENCLAW_APP_GROUP_ID = group.com.wildenstudio.soulnest.shared' apps/ios/Signing.xcconfig
+          test -s apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png
+          test -s apps/ios/Sources/Assets.xcassets/AppIconDebug.appiconset/1024.png
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIcon.appiconset/watch-marketing-1024.png
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIconDebug.appiconset/watch-marketing-1024.png
+          test "$(sips -g pixelWidth apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png | awk '/pixelWidth/ {print $2}')" = "1024"
+          test "$(sips -g pixelHeight apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png | awk '/pixelHeight/ {print $2}')" = "1024"
+
+      - name: Build SoulNest for iOS Simulator
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          xcodebuild \
+            -project OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee "$RUNNER_TEMP/soulnest-xcodebuild.log"
