@@ -57,6 +57,7 @@ jobs:
           swift --version
           node --version
 
+      # The iOS metadata scripts import tsx from the repository dependency tree.
       - name: Install locked Node dependencies
         run: |
           set -euo pipefail
