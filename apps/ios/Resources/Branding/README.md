@@ -23,21 +23,30 @@ cd apps/ios
 ./generate-soulnest-project.sh
 ```
 
-The command first generates all Release and Debug Apple Watch icon sizes with
-macOS `sips`, then invokes XcodeGen with the upstream project spec and the small
-SoulNest branding overlay. Keeping brand overrides outside the large upstream
-`project.yml` reduces merge conflicts during upstream synchronization.
+The command renders the approved heart-and-nest design from the checked-in
+Swift/CoreGraphics source, generates Release and Debug Apple Watch icon sizes
+with macOS `sips`, and then invokes XcodeGen with the upstream project spec and
+the small SoulNest branding overlay. Keeping brand overrides outside the large
+upstream `project.yml` reduces merge conflicts during synchronization.
 
 ## App icon
 
-The icon uses an original heart-and-nest composition approved for SoulNest.
-It contains no third-party logo, OpenClaw mascot, text, or portrait. The
-repository stores an opaque 1024×1024 PNG for Release and a separately marked
-Debug icon. Xcode 26's single-size App Icon asset generates required iOS sizes;
-`generate-soulnest-icons.sh` derives the required Apple Watch sizes.
+The icon uses an original heart-and-nest composition approved for SoulNest. It
+contains no third-party logo, OpenClaw mascot, text, or portrait.
 
-Source artwork was created specifically for this repository and approved by
-the repository owner. It is not imported from a third-party asset pack.
+The maintainable source of truth is:
+
+```text
+apps/ios/scripts/generate-soulnest-master-icons.swift
+```
+
+It renders opaque 1024×1024 Release and Debug PNG masters. Xcode 26's
+single-size App Icon asset generates required iOS sizes, while
+`generate-soulnest-icons.sh` derives the Apple Watch sizes. The Debug version
+adds a cyan diamond badge without changing the core brand mark.
+
+The source was created specifically for this repository and approved by the
+repository owner. It is not imported from a third-party asset pack.
 
 ## Local signing
 
