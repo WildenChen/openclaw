@@ -4,16 +4,16 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>$(OPENCLAW_APP_BUNDLE_ID).bgrefresh</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).bgrefresh</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>OpenClaw</string>
+	<string>SoulNest</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconName</key>
-	<string>AppIcon</string>
+	<string>$(ASSETCATALOG_COMPILER_APPICON_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -28,10 +28,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>ai.openclawfoundation.app</string>
+			<string>com.wildenstudio.soulnest</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>openclaw</string>
+				<string>$(OPENCLAW_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
@@ -51,41 +51,60 @@
 		<string>_openclaw-gw._tcp</string>
 	</array>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>OpenClaw uses your calendars to show events and scheduling context when you enable calendar access.</string>
+	<string>SoulNest uses your calendars to show events and scheduling context when you enable calendar access.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>OpenClaw uses your calendars to show events and scheduling context when you enable calendar access.</string>
+	<string>SoulNest uses your calendars to show events and scheduling context when you enable calendar access.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>OpenClaw uses your calendars to add events when you enable calendar access.</string>
+	<string>SoulNest uses your calendars to add events when you enable calendar access.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>OpenClaw can capture photos or short video clips when requested via the gateway.</string>
+	<string>SoulNest uses the camera when you scan an OpenClaw Gateway setup QR code or explicitly share a photo or short video with your paired assistant.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>OpenClaw uses your contacts so you can search and reference people while using the assistant.</string>
+	<string>SoulNest uses your contacts so you can search and reference people while using your assistant.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>OpenClaw discovers and connects to your OpenClaw gateway on the local network.</string>
+	<string>SoulNest discovers and connects to your OpenClaw Gateway on the local network.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>OpenClaw can share your location in the background when you enable Always.</string>
+	<string>SoulNest can share your location in the background when you explicitly enable Always.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>OpenClaw uses your location when you allow location sharing.</string>
+	<string>SoulNest uses your location when you allow location sharing.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>OpenClaw uses the microphone for realtime chat, voice wake, and push-to-talk.</string>
+	<string>SoulNest uses the microphone for realtime chat, voice wake, push-to-talk, and voice notes.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>OpenClaw may use motion data to support device-aware interactions and automations.</string>
+	<string>SoulNest may use motion data to support device-aware interactions and automations.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>SoulNest reads the health data you select to create summaries you request and sends those summaries through your OpenClaw Gateway to your configured AI provider.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>SoulNest does not write to Apple Health. It uses read-only data to create summaries you request.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>OpenClaw needs photo library access when you choose existing photos to share with your assistant.</string>
+	<string>SoulNest lets you choose photos to share with your assistant and save images you explicitly select.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>OpenClaw uses your reminders to list, add, and complete tasks when you enable reminders access.</string>
+	<string>SoulNest uses your reminders to list, add, and complete tasks when you enable reminders access.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>OpenClaw uses on-device speech recognition for talk mode and voice wake.</string>
+	<string>SoulNest uses on-device speech recognition for talk mode and voice wake.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>OpenClawAppGroupIdentifier</key>
-	<string>$(OPENCLAW_APP_GROUP_ID)</string>
+	<string>$(OPENCLAW_ACTIVE_APP_GROUP_ID)</string>
 	<key>OpenClawCanonicalVersion</key>
 	<string>$(OPENCLAW_IOS_VERSION)</string>
+	<key>OpenClawGitCommit</key>
+	<string>$(OPENCLAW_GIT_COMMIT)</string>
+	<key>OpenClawBuildTimestamp</key>
+	<string>$(OPENCLAW_BUILD_TIMESTAMP)</string>
 	<key>OpenClawPushMode</key>
 	<string>$(OPENCLAW_PUSH_MODE)</string>
 	<key>OpenClawPushRelayBaseURL</key>
 	<string>$(OPENCLAW_PUSH_RELAY_BASE_URL)</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>RedHatDisplay[wght].ttf</string>
+		<string>Inter[opsz,wght].ttf</string>
+		<string>Inter-Italic[opsz,wght].ttf</string>
+		<string>JetBrainsMono-Regular.ttf</string>
+		<string>JetBrainsMono-Medium.ttf</string>
+		<string>JetBrainsMono-SemiBold.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -94,6 +113,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>

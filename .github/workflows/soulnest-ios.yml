@@ -1,0 +1,216 @@
+name: SoulNest iOS
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/soulnest-ios.yml"
+      - "apps/ios/**"
+      - "apps/shared/**"
+      - "apps/swabble/**"
+      - "config/swiftformat"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "scripts/check-swift-tools.sh"
+      - "scripts/install-swift-tools.sh"
+      - "scripts/ios-*.sh"
+      - "scripts/ios-*.mjs"
+      - "scripts/ios-*.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/soulnest-ios.yml"
+      - "apps/ios/**"
+      - "apps/shared/**"
+      - "apps/swabble/**"
+      - "config/swiftformat"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "scripts/check-swift-tools.sh"
+      - "scripts/install-swift-tools.sh"
+      - "scripts/ios-*.sh"
+      - "scripts/ios-*.mjs"
+      - "scripts/ios-*.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soulnest-ios-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-build:
+    name: iOS Simulator Build and Launch
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Report toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+          node --version
+
+      # The iOS metadata scripts import tsx from the repository dependency tree.
+      - name: Install locked Node dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install XcodeGen and pinned Swift tools
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+          swift_tools="$RUNNER_TEMP/soulnest-swift-tools"
+          installed=false
+          for attempt in 1 2 3; do
+            rm -rf "$swift_tools"
+            if ./scripts/install-swift-tools.sh "$swift_tools"; then
+              installed=true
+              break
+            fi
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep "$((attempt * 5))"
+            fi
+          done
+          if [[ "$installed" != true ]]; then
+            echo "error: unable to download pinned Swift tools after 3 attempts" >&2
+            exit 1
+          fi
+
+          echo "$swift_tools" >> "$GITHUB_PATH"
+          xcodegen --version
+          "$swift_tools/swiftformat" --version
+          "$swift_tools/swiftlint" version
+
+      - name: Prepare generated iOS metadata
+        run: |
+          set -euo pipefail
+          ./scripts/ios-write-version-xcconfig.sh
+          node scripts/ios-write-swift-filelist.mjs
+
+      - name: Generate SoulNest project and icon variants
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          ./generate-soulnest-project.sh
+
+      - name: Validate SoulNest brand identity
+        run: |
+          set -euo pipefail
+          release_set=apps/ios/Sources/Assets.xcassets/AppIcon.appiconset
+          debug_set=apps/ios/Sources/Assets.xcassets/AppIconDebug.appiconset
+          release_icon="$release_set/1024.png"
+          release_dark="$release_set/1024-dark.png"
+          debug_icon="$debug_set/1024.png"
+          debug_dark="$debug_set/1024-dark.png"
+          build_settings="$RUNNER_TEMP/soulnest-debug-build-settings.txt"
+
+          plutil -lint apps/ios/Sources/Info.plist
+          xcodebuild \
+            -project apps/ios/OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -showBuildSettings > "$build_settings"
+          grep -Eq '^[[:space:]]*INFOPLIST_KEY_CFBundleDisplayName = SoulNest$' "$build_settings"
+          grep -Eq '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = com\.wildenstudio\.soulnest\.debug$' "$build_settings"
+          grep -Eq '^[[:space:]]*OPENCLAW_URL_SCHEME = soulnest-debug$' "$build_settings"
+          grep -Eq '^[[:space:]]*OPENCLAW_APP_GROUP_ID = group\.com\.wildenstudio\.soulnest\.shared$' "$build_settings"
+          grep -Fq 'OPENCLAW_APP_BUNDLE_ID = com.wildenstudio.soulnest' apps/ios/Signing.xcconfig
+          grep -Fq 'OPENCLAW_APP_GROUP_ID = group.com.wildenstudio.soulnest.shared' apps/ios/Signing.xcconfig
+          grep -Fq '"value": "dark"' "$release_set/Contents.json"
+          grep -Fq '"value": "tinted"' "$release_set/Contents.json"
+          grep -Fq '"value": "dark"' "$debug_set/Contents.json"
+          grep -Fq '"value": "tinted"' "$debug_set/Contents.json"
+
+          for icon in "$release_icon" "$release_dark" "$debug_icon" "$debug_dark"; do
+            test -s "$icon"
+            test "$(sips -g pixelWidth "$icon" | awk '/pixelWidth/ {print $2}')" = "1024"
+            test "$(sips -g pixelHeight "$icon" | awk '/pixelHeight/ {print $2}')" = "1024"
+            test "$(sips -g hasAlpha "$icon" | awk '/hasAlpha/ {print $2}')" = "no"
+          done
+
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIcon.appiconset/watch-marketing-1024.png
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIconDebug.appiconset/watch-marketing-1024.png
+
+      - name: Build SoulNest for iOS Simulator
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          xcodebuild \
+            -project OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/SoulNestDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee "$RUNNER_TEMP/soulnest-xcodebuild.log"
+
+      - name: Install and launch SoulNest in Simulator
+        run: |
+          set -euo pipefail
+          device_id="$(python3 - <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          payload = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"],
+              text=True,
+          ))
+          for runtime, devices in payload.get("devices", {}).items():
+              if "iOS" not in runtime:
+                  continue
+              for device in devices:
+                  if device.get("isAvailable") and device.get("name", "").startswith("iPhone"):
+                      print(device["udid"])
+                      sys.exit(0)
+          raise SystemExit("no available iPhone Simulator found")
+          PY
+          )"
+          trap 'xcrun simctl shutdown "$device_id" >/dev/null 2>&1 || true' EXIT
+          xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$device_id" -b
+
+          products_dir="$RUNNER_TEMP/SoulNestDerivedData/Build/Products/Debug-iphonesimulator"
+          build_app_path="$(find "$products_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$build_app_path"
+          test -d "$build_app_path"
+
+          # Xcode may hardlink identical Swift package frameworks across the app and
+          # extension bundles in DerivedData. CoreSimulator can reject that layout
+          # while creating extension placeholders, so install a byte-for-byte copy
+          # made without rsync's hardlink-preservation option.
+          install_app_path="$RUNNER_TEMP/SoulNestInstall.app"
+          rm -rf "$install_app_path"
+          mkdir -p "$install_app_path"
+          rsync -a "$build_app_path/" "$install_app_path/"
+
+          test "$(plutil -extract CFBundleDisplayName raw "$install_app_path/Info.plist")" = "SoulNest"
+          bundle_id="$(plutil -extract CFBundleIdentifier raw "$install_app_path/Info.plist")"
+          test "$bundle_id" = "com.wildenstudio.soulnest.debug"
+
+          remaining_hardlink="$(find "$install_app_path" -type f -links +1 -print -quit)"
+          if [[ -n "$remaining_hardlink" ]]; then
+            echo "error: copied app still contains hardlinked files: $remaining_hardlink" >&2
+            find "$install_app_path" -type f -links +1 -print | head -n 20 >&2
+            exit 1
+          fi
+
+          xcrun simctl install "$device_id" "$install_app_path"
+          launch_output="$(xcrun simctl launch "$device_id" "$bundle_id")"
+          echo "$launch_output"
+          grep -Fq "$bundle_id:" <<<"$launch_output"
