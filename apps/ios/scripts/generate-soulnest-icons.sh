@@ -3,9 +3,12 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 master_generator="$root/scripts/generate-soulnest-master-icons.swift"
+dark_generator="$root/scripts/generate-soulnest-dark-icons.swift"
 normalizer="$root/scripts/normalize-soulnest-icon-png.swift"
 release_source="$root/Sources/Assets.xcassets/AppIcon.appiconset/1024.png"
+release_dark="$root/Sources/Assets.xcassets/AppIcon.appiconset/1024-dark.png"
 debug_source="$root/Sources/Assets.xcassets/AppIconDebug.appiconset/1024.png"
+debug_dark="$root/Sources/Assets.xcassets/AppIconDebug.appiconset/1024-dark.png"
 release_watch="$root/WatchApp/Assets.xcassets/AppIcon.appiconset"
 debug_watch="$root/WatchApp/Assets.xcassets/AppIconDebug.appiconset"
 
@@ -19,7 +22,7 @@ command -v sips >/dev/null 2>&1 || {
   exit 1
 }
 
-for script in "$master_generator" "$normalizer"; do
+for script in "$master_generator" "$dark_generator" "$normalizer"; do
   test -f "$script" || {
     echo "error: missing SoulNest icon script: $script" >&2
     exit 1
@@ -31,7 +34,12 @@ done
 xcrun swift "$master_generator" "$release_source" "$debug_source"
 xcrun swift "$normalizer" "$release_source" "$debug_source"
 
-for source in "$release_source" "$debug_source"; do
+# Produce dedicated dark appearances. The tinted appearance is declared in the
+# Asset Catalog without a filename so iOS can derive the monochrome treatment.
+xcrun swift "$dark_generator" "$release_source" "$release_dark" "$debug_source" "$debug_dark"
+xcrun swift "$normalizer" "$release_dark" "$debug_dark"
+
+for source in "$release_source" "$release_dark" "$debug_source" "$debug_dark"; do
   test -s "$source" || {
     echo "error: icon generator did not create: $source" >&2
     exit 1
@@ -69,4 +77,4 @@ generate_watch_set() {
 generate_watch_set "$release_source" "$release_watch"
 generate_watch_set "$debug_source" "$debug_watch"
 
-echo "Generated opaque SoulNest Release and Debug iOS and Apple Watch icons."
+echo "Generated opaque SoulNest Release, Dark, Tinted-ready, Debug, and Apple Watch icons."
