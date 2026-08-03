@@ -92,21 +92,31 @@ jobs:
       - name: Validate SoulNest brand identity
         run: |
           set -euo pipefail
-          release_icon=apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png
-          debug_icon=apps/ios/Sources/Assets.xcassets/AppIconDebug.appiconset/1024.png
+          release_set=apps/ios/Sources/Assets.xcassets/AppIcon.appiconset
+          debug_set=apps/ios/Sources/Assets.xcassets/AppIconDebug.appiconset
+          release_icon="$release_set/1024.png"
+          release_dark="$release_set/1024-dark.png"
+          debug_icon="$debug_set/1024.png"
+          debug_dark="$debug_set/1024-dark.png"
+
           plutil -lint apps/ios/Sources/Info.plist
           grep -Fq '<string>SoulNest</string>' apps/ios/Sources/Info.plist
           grep -Fq 'OPENCLAW_APP_BUNDLE_ID = com.wildenstudio.soulnest' apps/ios/Signing.xcconfig
           grep -Fq 'OPENCLAW_APP_GROUP_ID = group.com.wildenstudio.soulnest.shared' apps/ios/Signing.xcconfig
-          test -s "$release_icon"
-          test -s "$debug_icon"
-          test -s apps/ios/WatchApp/Assets.xcassets/AppIcon.appiconset/watch-marketing-1024.png
-          test -s apps/ios/WatchApp/Assets.xcassets/AppIconDebug.appiconset/watch-marketing-1024.png
-          for icon in "$release_icon" "$debug_icon"; do
+          grep -Fq '"value": "dark"' "$release_set/Contents.json"
+          grep -Fq '"value": "tinted"' "$release_set/Contents.json"
+          grep -Fq '"value": "dark"' "$debug_set/Contents.json"
+          grep -Fq '"value": "tinted"' "$debug_set/Contents.json"
+
+          for icon in "$release_icon" "$release_dark" "$debug_icon" "$debug_dark"; do
+            test -s "$icon"
             test "$(sips -g pixelWidth "$icon" | awk '/pixelWidth/ {print $2}')" = "1024"
             test "$(sips -g pixelHeight "$icon" | awk '/pixelHeight/ {print $2}')" = "1024"
             test "$(sips -g hasAlpha "$icon" | awk '/hasAlpha/ {print $2}')" = "no"
           done
+
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIcon.appiconset/watch-marketing-1024.png
+          test -s apps/ios/WatchApp/Assets.xcassets/AppIconDebug.appiconset/watch-marketing-1024.png
 
       - name: Build SoulNest for iOS Simulator
         working-directory: apps/ios
