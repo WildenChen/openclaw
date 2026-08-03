@@ -45,7 +45,7 @@ final class SoulNestAgentProfileStore {
     }
 
     private static func loadProfile(from defaults: UserDefaults) -> SoulNestAgentProfile? {
-        guard let data = defaults.data(forKey: Self.storageKey),
+        guard let data = defaults.data(forKey: storageKey),
               let profile = try? JSONDecoder().decode(SoulNestAgentProfile.self, from: data),
               profile.isValid,
               profile.id == SoulNestAgentProfile.yujie.id,
