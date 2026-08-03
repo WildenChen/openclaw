@@ -36,16 +36,43 @@ targets:
         NSSpeechRecognitionUsageDescription: SoulNest uses on-device speech recognition for talk mode and voice wake.
 
   OpenClawShareExtension:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.share
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.share
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.share
     info:
       properties:
         CFBundleDisplayName: SoulNest Share
 
   OpenClawActivityWidget:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.activitywidget
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.activitywidget
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.activitywidget
     info:
       properties:
         CFBundleDisplayName: SoulNest Activity
 
   OpenClawWatchApp:
+    settings:
+      base:
+        OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.watchkitapp
+      configs:
+        Debug:
+          OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest.debug
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.watchkitapp
+        Release:
+          OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.watchkitapp
     info:
       properties:
         CFBundleDisplayName: SoulNest
