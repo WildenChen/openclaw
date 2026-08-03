@@ -108,7 +108,7 @@ final class SoulNestConversationSessionStore {
     }
 
     private static func loadSessions(from defaults: UserDefaults) -> [UUID: SoulNestConversationSession] {
-        guard let data = defaults.data(forKey: Self.storageKey),
+        guard let data = defaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([SoulNestConversationSession].self, from: data)
         else {
             return [:]
