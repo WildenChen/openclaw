@@ -1,5 +1,9 @@
-# SoulNest branding overlay for the upstream OpenClaw iOS project.
-# Generate with: ./generate-soulnest-project.sh
+# SoulNest branding spec for the upstream OpenClaw iOS project.
+# XcodeGen resolves project.yml first, then applies these SoulNest overrides.
+
+name: OpenClaw
+include:
+  - project.yml
 
 options:
   bundleIdPrefix: com.wildenstudio
