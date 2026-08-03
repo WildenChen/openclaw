@@ -70,8 +70,24 @@ jobs:
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
           fi
+
           swift_tools="$RUNNER_TEMP/soulnest-swift-tools"
-          ./scripts/install-swift-tools.sh "$swift_tools"
+          installed=false
+          for attempt in 1 2 3; do
+            rm -rf "$swift_tools"
+            if ./scripts/install-swift-tools.sh "$swift_tools"; then
+              installed=true
+              break
+            fi
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep "$((attempt * 5))"
+            fi
+          done
+          if [[ "$installed" != true ]]; then
+            echo "error: unable to download pinned Swift tools after 3 attempts" >&2
+            exit 1
+          fi
+
           echo "$swift_tools" >> "$GITHUB_PATH"
           xcodegen --version
           "$swift_tools/swiftformat" --version
