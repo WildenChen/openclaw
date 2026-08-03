@@ -8,6 +8,8 @@ on:
       - "apps/shared/**"
       - "apps/swabble/**"
       - "config/swiftformat"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - "scripts/check-swift-tools.sh"
       - "scripts/install-swift-tools.sh"
       - "scripts/ios-*.sh"
@@ -22,6 +24,8 @@ on:
       - "apps/shared/**"
       - "apps/swabble/**"
       - "config/swiftformat"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - "scripts/check-swift-tools.sh"
       - "scripts/install-swift-tools.sh"
       - "scripts/ios-*.sh"
@@ -52,6 +56,12 @@ jobs:
           xcodebuild -version
           swift --version
           node --version
+
+      - name: Install locked Node dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install XcodeGen and pinned Swift tools
         run: |
