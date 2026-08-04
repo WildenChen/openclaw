@@ -20,7 +20,7 @@ final class SoulNestGatewaySession {
         self.observeEvents()
     }
 
-    deinit {
+    isolated deinit {
         self.eventTask?.cancel()
     }
 
@@ -81,7 +81,7 @@ final class SoulNestGatewaySession {
         }
     }
 
-    private static func map(_ error: any Error) -> SoulNestGatewayError {
+    static func map(_ error: any Error) -> SoulNestGatewayError {
         if let gatewayError = error as? SoulNestGatewayError {
             return gatewayError
         }
