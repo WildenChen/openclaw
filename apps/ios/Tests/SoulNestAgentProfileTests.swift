@@ -76,12 +76,16 @@ final class SoulNestAgentProfileTests: XCTestCase {
 
     func testEncodedProfileContainsNoCredentialOrMemoryFields() throws {
         let data = try JSONEncoder().encode(SoulNestAgentProfile.yujie)
-        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let keys = Set(object.keys.map { $0.lowercased() })
 
-        XCTAssertFalse(json.localizedCaseInsensitiveContains("apiKey"))
-        XCTAssertFalse(json.localizedCaseInsensitiveContains("token"))
-        XCTAssertFalse(json.localizedCaseInsensitiveContains("soul"))
-        XCTAssertFalse(json.localizedCaseInsensitiveContains("memory"))
-        XCTAssertFalse(json.localizedCaseInsensitiveContains("provider"))
+        // Assert on field names, not substring values: the session namespace
+        // "soulnest.yujie" legitimately contains "soul" as routing text.
+        XCTAssertFalse(keys.contains(where: { $0.contains("apikey") }))
+        XCTAssertFalse(keys.contains(where: { $0.contains("token") }))
+        XCTAssertFalse(keys.contains(where: { $0.contains("soul") }))
+        XCTAssertFalse(keys.contains(where: { $0.contains("memory") }))
+        XCTAssertFalse(keys.contains(where: { $0.contains("provider") }))
     }
 }

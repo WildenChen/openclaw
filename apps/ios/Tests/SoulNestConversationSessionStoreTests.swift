@@ -69,6 +69,29 @@ final class SoulNestConversationSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.session(for: conversationID), replacement)
     }
 
+    func testMappingForAnotherProfileIsRejectedAndRebuiltOnLoad() throws {
+        let conversationID = UUID()
+        let otherProfile = SoulNestConversationSession(
+            id: conversationID,
+            profileID: "someone-else",
+            openClawAgentID: "someone-else",
+            generation: UUID(),
+            sessionKey: "agent:someone-else:soulnest-ios-abc",
+            createdAt: Date(),
+            updatedAt: Date())
+        self.defaults.set(
+            try JSONEncoder().encode([otherProfile]),
+            forKey: SoulNestConversationSessionStore.storageKey)
+
+        let store = SoulNestConversationSessionStore(defaults: self.defaults)
+        let rebuilt = store.session(for: conversationID)
+
+        XCTAssertNotEqual(rebuilt.sessionKey, otherProfile.sessionKey)
+        XCTAssertEqual(rebuilt.profileID, SoulNestAgentProfile.yujie.id)
+        XCTAssertEqual(rebuilt.openClawAgentID, SoulNestAgentProfile.yujie.openClawAgentID)
+        XCTAssertTrue(rebuilt.sessionKey.hasPrefix("agent:yujie:soulnest-ios-"))
+    }
+
     func testTelegramOrMainSessionIsNotAcceptedAsIOSConversationMapping() throws {
         let conversationID = UUID()
         let invalid = SoulNestConversationSession(

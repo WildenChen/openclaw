@@ -159,7 +159,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build | tee "$RUNNER_TEMP/soulnest-xcodebuild.log"
 
-      - name: Install and launch SoulNest in Simulator
+      - name: Select iOS Simulator device
+        id: ios_device
         run: |
           set -euo pipefail
           device_id="$(python3 - <<'PY'
@@ -181,6 +182,48 @@ jobs:
           raise SystemExit("no available iPhone Simulator found")
           PY
           )"
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+
+      - name: Run SoulNest core unit tests
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          device_id="${{ steps.ios_device.outputs.device_id }}"
+          xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$device_id" -b
+
+          result_bundle="$RUNNER_TEMP/SoulNestTestResults/SoulNestTests.xcresult"
+          mkdir -p "$RUNNER_TEMP/SoulNestTestResults"
+          xcodebuild \
+            -project OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${device_id}" \
+            -derivedDataPath "$RUNNER_TEMP/SoulNestDerivedData" \
+            -resultBundlePath "$result_bundle" \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -only-testing:OpenClawTests/SessionKeyTests \
+            -only-testing:OpenClawTests/SoulNestAgentProfileTests \
+            -only-testing:OpenClawTests/SoulNestConversationSessionStoreTests \
+            test | tee "$RUNNER_TEMP/soulnest-xcodebuild-test.log"
+
+      - name: Upload SoulNest unit test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: soulnest-unit-tests
+          path: |
+            ${{ runner.temp }}/SoulNestTestResults/*.xcresult
+            ${{ runner.temp }}/soulnest-xcodebuild-test.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Install and launch SoulNest in Simulator
+        run: |
+          set -euo pipefail
+          device_id="${{ steps.ios_device.outputs.device_id }}"
           trap 'xcrun simctl shutdown "$device_id" >/dev/null 2>&1 || true' EXIT
           xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$device_id" -b
