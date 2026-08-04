@@ -207,6 +207,7 @@ jobs:
             -only-testing:OpenClawTests/SessionKeyTests \
             -only-testing:OpenClawTests/SoulNestAgentProfileTests \
             -only-testing:OpenClawTests/SoulNestConversationSessionStoreTests \
+            -only-testing:OpenClawTests/SoulNestCharacterAssetTests \
             test | tee "$RUNNER_TEMP/soulnest-xcodebuild-test.log"
 
       - name: Upload SoulNest unit test evidence
