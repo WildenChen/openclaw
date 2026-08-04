@@ -11,6 +11,30 @@ enum SoulNestCharacterState: String, Codable, CaseIterable, Sendable {
 enum SoulNestCharacterAssetKind: String, Codable, Sendable {
     case staticImage
     case loopingVideo
+
+    /// Extensions the resolver accepts for each kind. Kept narrow so unexpected
+    /// containers fall back instead of being trusted to render correctly.
+    var supportedFileExtensions: [String] {
+        switch self {
+        case .staticImage:
+            ["png", "jpg", "jpeg", "webp"]
+        case .loopingVideo:
+            ["mp4", "mov", "m4v"]
+        }
+    }
+
+    func isSupported(fileExtension: String) -> Bool {
+        self.supportedFileExtensions.contains(fileExtension.lowercased())
+    }
+}
+
+/// Access scope for character asset packs and indexes. Private assets never
+/// resolve through the general index; general assets never resolve through a
+/// private index. This boundary prevents private artwork from leaking into
+/// shared client surfaces.
+enum SoulNestCharacterAssetAccess: String, Codable, Sendable {
+    case general
+    case privateOnly
 }
 
 struct SoulNestCharacterAsset: Codable, Equatable, Identifiable, Sendable {
@@ -23,7 +47,8 @@ struct SoulNestCharacterAsset: Codable, Equatable, Identifiable, Sendable {
     var isValid: Bool {
         !self.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !self.resourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !self.fileExtension.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !self.fileExtension.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            self.kind.isSupported(fileExtension: self.fileExtension)
     }
 }
 
@@ -50,6 +75,25 @@ struct SoulNestCharacterAssetPack: Codable, Equatable, Identifiable, Sendable {
     var scenes: [SoulNestCharacterScene]
     var defaultOutfitID: String
     var defaultSceneID: String
+    var accessScope: SoulNestCharacterAssetAccess
+
+    init(
+        id: String,
+        agentProfileID: String,
+        outfits: [SoulNestCharacterOutfit],
+        scenes: [SoulNestCharacterScene],
+        defaultOutfitID: String,
+        defaultSceneID: String,
+        accessScope: SoulNestCharacterAssetAccess = .general)
+    {
+        self.id = id
+        self.agentProfileID = agentProfileID
+        self.outfits = outfits
+        self.scenes = scenes
+        self.defaultOutfitID = defaultOutfitID
+        self.defaultSceneID = defaultSceneID
+        self.accessScope = accessScope
+    }
 
     var isValid: Bool {
         guard !self.id.isEmpty,
@@ -66,6 +110,28 @@ struct SoulNestCharacterAssetPack: Codable, Equatable, Identifiable, Sendable {
                 outfit.assets.allSatisfy(\.isValid) &&
                 outfit.asset(for: .idle) != nil
         }
+    }
+
+    /// Strict completeness: every outfit provides every required state. A pack
+    /// may still be structurally valid and resolvable via the idle fallback when
+    /// incomplete; this is the explicit completeness gate.
+    var isComplete: Bool {
+        self.outfits.allSatisfy { outfit in
+            self.missingStates(for: outfit.id).isEmpty
+        }
+    }
+
+    /// States `outfitID` cannot render directly and would fall back to idle.
+    func missingStates(for outfitID: String) -> Set<SoulNestCharacterState> {
+        guard let outfit = self.outfits.first(where: { $0.id == outfitID }) else {
+            return Set(SoulNestCharacterState.allCases)
+        }
+        let present = Set(outfit.assets.map(\.state))
+        return Set(SoulNestCharacterState.allCases).subtracting(present)
+    }
+
+    var allAssets: [SoulNestCharacterAsset] {
+        self.outfits.flatMap(\.assets)
     }
 
     static let yujiePlaceholder = Self(
@@ -92,4 +158,14 @@ struct SoulNestCharacterAssetPack: Codable, Equatable, Identifiable, Sendable {
         ],
         defaultOutfitID: "default",
         defaultSceneID: "default")
+}
+
+extension SoulNestCharacterAssetPack {
+    /// The placeholder idle asset used as the ultimate fallback when every other
+    /// candidate is unusable. Exposed for the resolver and tests.
+    static var placeholderIdleAsset: SoulNestCharacterAsset? {
+        SoulNestCharacterAssetPack.yujiePlaceholder
+            .outfits.first { $0.id == SoulNestCharacterAssetPack.yujiePlaceholder.defaultOutfitID }?
+            .asset(for: .idle)
+    }
 }

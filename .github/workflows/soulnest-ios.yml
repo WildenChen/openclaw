@@ -208,6 +208,10 @@ jobs:
             -only-testing:OpenClawTests/SoulNestAgentProfileTests \
             -only-testing:OpenClawTests/SoulNestConversationSessionStoreTests \
             -only-testing:OpenClawTests/SoulNestCharacterAssetTests \
+            -only-testing:OpenClawTests/SoulNestCharacterAssetManifestTests \
+            -only-testing:OpenClawTests/SoulNestCharacterAssetFileValidatorTests \
+            -only-testing:OpenClawTests/SoulNestCharacterAssetCacheTests \
+            -only-testing:OpenClawTests/SoulNestCharacterAssetIndexTests \
             -only-testing:OpenClawTests/SoulNestGatewaySessionTests \
             -only-testing:OpenClawTests/SoulNestOpenClawGatewayClientTests \
             test | tee "$RUNNER_TEMP/soulnest-xcodebuild-test.log"
