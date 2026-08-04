@@ -1,8 +1,22 @@
 name: Shared OpenClawKit Periphery
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - "apps/ios/**"
+      - "apps/macos/**"
+      - "apps/shared/OpenClawKit/**"
+      - "scripts/periphery-intersection.mjs"
+      - "scripts/ios-configure-signing.sh"
+      - "scripts/ios-write-swift-filelist.mjs"
+      - "scripts/ios-write-version-xcconfig.sh"
+      - "test/scripts/periphery-intersection.test.ts"
+      - ".github/workflows/shared-openclawkit-periphery.yml"
+  schedule:
+    - cron: "30 5 * * 1"
   workflow_dispatch:
 
 concurrency:

@@ -208,6 +208,7 @@ jobs:
             -only-testing:OpenClawTests/SoulNestAgentProfileTests \
             -only-testing:OpenClawTests/SoulNestConversationSessionStoreTests \
             -only-testing:OpenClawTests/SoulNestConversationLifecycleTests \
+            -only-testing:OpenClawTests/SoulNestConversationCacheTests \
             -only-testing:OpenClawTests/SoulNestCharacterAssetTests \
             -only-testing:OpenClawTests/SoulNestCharacterAssetManifestTests \
             -only-testing:OpenClawTests/SoulNestCharacterAssetFileValidatorTests \

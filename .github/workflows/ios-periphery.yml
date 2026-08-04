@@ -1,8 +1,25 @@
 name: iOS Periphery Dead Code
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - "apps/ios/**"
+      - "apps/shared/OpenClawKit/Sources/**"
+      - "apps/swabble/Sources/SwabbleKit/**"
+      - "config/swiftformat"
+      - "config/swiftlint.yml"
+      - ".github/workflows/ios-periphery.yml"
+      - ".github/workflows/ios-periphery-comment.yml"
+      - "scripts/check-swift-tools.sh"
+      - "scripts/format-swift.sh"
+      - "scripts/install-swift-tools.sh"
+      - "scripts/ios-write-swift-filelist.mjs"
+      - "scripts/lint-swift.sh"
+  schedule:
+    - cron: "30 4 * * *"
   workflow_dispatch:
 
 concurrency:

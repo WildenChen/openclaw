@@ -1,8 +1,17 @@
 name: macOS Periphery Dead Code
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - "apps/macos/**"
+      - "apps/macos/.periphery.yml"
+      - ".github/workflows/macos-periphery.yml"
+      - ".github/workflows/ios-periphery-comment.yml"
+  schedule:
+    - cron: "30 4 * * 1"
   workflow_dispatch:
 
 concurrency:

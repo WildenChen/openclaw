@@ -96,7 +96,7 @@ When the check fails, update the PR body instead of pushing another code commit.
 
 Scope logic lives in `scripts/ci-changed-scope.mjs` and is covered by unit tests in `src/scripts/ci-changed-scope.test.ts`. Manual dispatch skips changed-scope detection and makes the preflight manifest act as if every scoped area changed.
 
-Separate iOS and macOS Periphery workflows enforce a zero-findings dead-code policy. Each runs only when a non-draft pull request touches its native scan scope, or when manually dispatched.
+Separate iOS and macOS Periphery workflows enforce a zero-findings dead-code policy. Each runs on non-draft pull requests that touch its native scan scope (path-filtered at the trigger so the workflow does not even start for unrelated PRs), on pushes to `main`, on a weekly schedule, or when manually dispatched. PRs that do not change Periphery-relevant paths are not scanned.
 
 - **CI workflow edits** validate the Node CI graph, workflow linting, and the Windows lane (`ci.yml` executes it), but do not force iOS, Android, or macOS native builds by themselves; those platform lanes stay scoped to platform source changes.
 - **Workflow Sanity** runs `actionlint`, `zizmor` over all workflow YAML files, the composite-action interpolation guard, and the conflict-marker guard. The PR-scoped `security-fast` job also runs `zizmor` over changed workflow files so workflow security findings fail early in the main CI graph.
@@ -105,7 +105,18 @@ Separate iOS and macOS Periphery workflows enforce a zero-findings dead-code pol
 - **CI routing-only edits, the small set of core-test fixtures the fast task runs directly, and narrow plugin contract helper edits** use a fast Node-only manifest path: `preflight`, `security-fast`, and only the fast lanes the change touches — a single `checks-fast-core` CI-routing task, the two plugin contract shards, or both. That path skips build artifacts, Node 22 compatibility, channel contracts, full core shards, bundled-plugin shards, and additional guard matrices.
 - **Windows Node checks** are scoped to Windows-specific process/path wrappers, npm/pnpm/UI runner helpers, package manager config, and the CI workflow surfaces that execute that lane; unrelated source, plugin, install-smoke, and test-only changes stay on the Linux Node lanes.
 
-The slowest Node test families are split or balanced so each job stays small without over-reserving runners:
+### PR fast gate vs full gate
+
+A pull request is gated on the fast surface only:
+
+- **`SoulNest iOS`** (`soulnest-ios.yml`): the Xcode project generation, simulator build, and the curated SoulNest unit-test gate.
+- **`Workflow Sanity`** (`workflow-sanity.yml`): `actionlint`, `zizmor`, interpolation and conflict-marker guards.
+
+Heavy or platform-specific lanes — node `checks-*`, macOS/iOS/Android builds beyond the SoulNest gate, Periphery, CodeQL, OpenGrep precise diff, Blacksmith/Testbox full proof, and performance suites — do not block pull requests. Those lanes run on pushes to `main` (single-flight), on a weekly schedule, or via manual `workflow_dispatch` for release and broad validation. Periphery and the precise-scan workflows additionally filter their `pull_request` trigger to the paths they actually own, so an unrelated PR does not start them.
+
+Pre-release Full Release Validation dispatches these as a unified umbrella so every gate runs against the frozen release SHA before publication.
+
+## The slowest Node test families are split or balanced so each job stays small without over-reserving runners:
 
 - Plugin contracts and channel contracts each run as two weighted Blacksmith-backed shards with the standard GitHub runner fallback.
 - Core unit fast/support lanes run separately; core runtime infra splits into process, shared, hooks, secrets, and three cron domain shards.
