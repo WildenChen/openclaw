@@ -2,144 +2,157 @@ import OpenClawKit
 import SwiftUI
 
 struct SoulNestImmersiveChatView: View {
-    @Environment(\.dismiss) private var dismiss
-    let profile: SoulNestAgentProfile
-    let assetCache: SoulNestCharacterAssetCache
-    let assetIndex: SoulNestCharacterAssetIndex
-    @State private var conversationStore = SoulNestConversationSessionStore()
-    @State private var messages: [SoulNestMessageMetadata] = []
-    @State private var inputText = ""
-    @State private var isSending = false
-    @State private var sessionKey: String?
-    @State private var conversationID = UUID()
+    @Bindable private var store: SoulNestImmersiveChatStore
+    @State private var textInput = ""
+    @FocusState private var isInputFocused: Bool
+
+    init(store: SoulNestImmersiveChatStore) {
+        self.store = store
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            self.headerBar
-            Divider()
-            self.messageList
-            Divider()
-            self.inputBar
-        }
-        .navigationTitle(self.profile.displayName)
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Done") {
-                    self.dismiss()
+            messageList
+                .safeAreaInset(edge: .bottom) {
+                    inputBar
+                        .background(.ultraThinMaterial)
                 }
-            }
         }
+        .background(OpenClawBrand.void)
         .onAppear {
-            self.setupSession()
+            self.store.startNewConversation()
         }
-    }
-
-    private var headerBar: some View {
-        HStack {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(OpenClawBrand.accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(self.profile.displayName)
-                    .font(OpenClawType.subheadSemiBold)
-                    .foregroundStyle(.primary)
-                Text("Ready")
-                    .font(OpenClawType.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(self.messages, id: \.id) { message in
-                        self.messageBubble(message)
+                LazyVStack(spacing: 16) {
+                    if self.store.messages.isEmpty && !self.store.isSending {
+                        characterIdlePlaceholder
+                    }
+                    ForEach(self.store.messages) { message in
+                        messageBubble(message)
+                            .id(message.id)
+                    }
+                    if self.store.isGenerating {
+                        thinkingIndicator
+                            .id("thinking")
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 20)
             }
-            .onChange(of: self.messages.count) {
-                if let last = self.messages.last {
+            .scrollDismissDisplaysScrollIndicators(false)
+            .onChange(of: self.store.messages) { _, messages in
+                if let last = messages.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
             }
+            .onChange(of: self.store.isGenerating) { _, isGenerating in
+                if isGenerating {
+                    withAnimation {
+                        proxy.scrollTo("thinking", anchor: .bottom)
+                    }
+                }
+            }
         }
     }
 
-    private func messageBubble(_ message: SoulNestMessageMetadata) -> some View {
-        HStack {
-            if message.role == .user {
-                Spacer()
-                Text("You")
-                    .font(OpenClawType.caption2)
-                    .foregroundStyle(.secondary)
+    private var characterIdlePlaceholder: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(OpenClawBrand.accent)
+            Text(self.store.profile.displayName)
+                .font(OpenClawType.subheadline)
+                .foregroundStyle(.secondary)
+            Text("Send a message to start the conversation.")
+                .font(OpenClawType.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 40)
+    }
+
+    @ViewBuilder
+    private func messageBubble(_ message: SoulNestChatMessage) -> some View {
+        let displayedText: String
+        if message.role == .assistant && message.isStreaming {
+            displayedText = self.store.assistantText(for: message.requestID ?? "")
+        } else {
+            displayedText = message.text
+        }
+
+        HStack(alignment: .bottom, spacing: 8) {
+            if message.role == .assistant {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(OpenClawBrand.accent)
             }
-            Text(message.contentType == .text ? "Message" : "Attachment")
+            Text(displayedText.isEmpty ? "…" : displayedText)
                 .font(OpenClawType.body)
-                .foregroundStyle(.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(message.role == .user ? OpenClawBrand.accent : OpenClawBrand.void)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            if message.role == .assistant {
-                Spacer()
+                .background(message.role == .user ? OpenClawBrand.accent : OpenClawGray.field)
+                .foregroundStyle(message.role == .user ? .white : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            if message.role == .user {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(OpenClawBrand.accent)
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }
 
-    private var inputBar: some View {
-        HStack(spacing: 8) {
-            TextField("Type a message...", text: self.$inputText, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .font(OpenClawType.body)
-                .lineLimit(1...4)
-
-            Button {
-                self.sendText()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(self.inputText.isEmpty ? .secondary : OpenClawBrand.accent)
-            }
-            .disabled(self.inputText.isEmpty || self.isSending)
+    private var thinkingIndicator: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(OpenClawBrand.accent)
+                .frame(width: 6, height: 6)
+            Circle()
+                .fill(OpenClawBrand.accent)
+                .frame(width: 6, height: 6)
+            Circle()
+                .fill(OpenClawBrand.accent)
+                .frame(width: 6, height: 6)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(12)
+        .background(OpenClawGray.field)
+        .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func setupSession() {
-        let session = self.conversationStore.session(
-            for: self.conversationID,
-            profile: self.profile)
-        self.sessionKey = session.sessionKey
-        self.messages = []
-    }
-
-    private func sendText() {
-        let trimmed = self.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let sessionKey = self.sessionKey else { return }
-
-        self.isSending = true
-        self.inputText = ""
-
-        let metadata = SoulNestMessageMetadata(
-            id: UUID(),
-            conversationID: self.conversationID,
-            role: .user,
-            createdAt: Date(),
-            position: self.messages.count,
-            sizeHint: trimmed.count,
-            contentType: .text)
-        self.messages.append(metadata)
-
-        self.isSending = false
+    private var inputBar: some View {
+        HStack(spacing: 12) {
+            Button(action: {}) label: {
+                Image(systemName: "waveform")
+                    .font(.system(size: 20))
+                    .foregroundStyle(OpenClawBrand.accent)
+                    .accessibilityLabel("Voice input")
+            }
+            TextField("", text: $textInput, axis: .horizontal, prompt: Text("Message").font(OpenClawType.body))
+                .font(OpenClawType.body)
+                .disabled(self.store.isSending || self.store.isGenerating)
+                .focused($isInputFocused)
+                .accessibilityLabel("Message")
+            Button {
+                Task {
+                    await self.store.sendText(self.textInput)
+                    self.textInput = ""
+                }
+            } label: {
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(OpenClawBrand.accent)
+                    .accessibilityLabel("Send")
+            }
+            .disabled(self.store.isSending || self.store.isGenerating || self.textInput.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }

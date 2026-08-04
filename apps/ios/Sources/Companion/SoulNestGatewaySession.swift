@@ -13,6 +13,8 @@ final class SoulNestGatewaySession {
 
     private(set) var state: SoulNestGatewayConnectionState
     private(set) var lastError: SoulNestGatewayError?
+    private(set) var isGenerating: Bool = false
+    private(set) var assistantText: [String: String] = [:]
 
     init(client: any SoulNestGatewayClient) {
         self.client = client
@@ -52,7 +54,10 @@ final class SoulNestGatewaySession {
             throw SoulNestGatewayError.notConnected
         }
         do {
-            return try await self.client.sendText(text, sessionKey: sessionKey)
+            let runID = try await self.client.sendText(text, sessionKey: sessionKey)
+            self.assistantText[runID] = ""
+            self.isGenerating = true
+            return runID
         } catch {
             let mapped = Self.map(error)
             self.lastError = mapped
@@ -72,9 +77,15 @@ final class SoulNestGatewaySession {
                     if case let .failed(error) = state {
                         self.lastError = error
                     }
-                case .assistantText:
-                    break
+                case let .assistantText(requestID, text, isFinal):
+                    if isFinal {
+                        self.isGenerating = false
+                    } else {
+                        self.isGenerating = true
+                        self.assistantText[requestID, default: ""] += text
+                    }
                 case let .requestFailed(_, error):
+                    self.isGenerating = false
                     self.lastError = error
                 }
             }

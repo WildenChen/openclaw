@@ -8,6 +8,18 @@ enum SoulNestCharacterState: String, Codable, CaseIterable, Sendable {
     case offline
 }
 
+extension SoulNestCharacterState {
+    var humanReadable: String {
+        switch self {
+        case .idle: return "Idle"
+        case .thinking: return "Thinking..."
+        case .listening: return "Listening..."
+        case .talking: return "Talking"
+        case .offline: return "Offline"
+        }
+    }
+}
+
 enum SoulNestCharacterAssetKind: String, Codable, Sendable {
     case staticImage
     case loopingVideo
