@@ -21,9 +21,9 @@ struct SoulNestCharacterAsset: Codable, Equatable, Identifiable, Sendable {
     let fileExtension: String
 
     var isValid: Bool {
-        !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !resourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !fileExtension.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !self.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !self.resourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !self.fileExtension.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -33,7 +33,7 @@ struct SoulNestCharacterOutfit: Codable, Equatable, Identifiable, Sendable {
     var assets: [SoulNestCharacterAsset]
 
     func asset(for state: SoulNestCharacterState) -> SoulNestCharacterAsset? {
-        assets.first(where: { $0.state == state }) ?? assets.first(where: { $0.state == .idle })
+        self.assets.first(where: { $0.state == state }) ?? self.assets.first(where: { $0.state == .idle })
     }
 }
 
@@ -52,15 +52,15 @@ struct SoulNestCharacterAssetPack: Codable, Equatable, Identifiable, Sendable {
     var defaultSceneID: String
 
     var isValid: Bool {
-        guard !id.isEmpty,
-              !agentProfileID.isEmpty,
-              outfits.contains(where: { $0.id == defaultOutfitID }),
-              scenes.contains(where: { $0.id == defaultSceneID })
+        guard !self.id.isEmpty,
+              !self.agentProfileID.isEmpty,
+              self.outfits.contains(where: { $0.id == self.defaultOutfitID }),
+              self.scenes.contains(where: { $0.id == self.defaultSceneID })
         else {
             return false
         }
 
-        return outfits.allSatisfy { outfit in
+        return self.outfits.allSatisfy { outfit in
             !outfit.id.isEmpty &&
                 !outfit.displayName.isEmpty &&
                 outfit.assets.allSatisfy(\.isValid) &&
