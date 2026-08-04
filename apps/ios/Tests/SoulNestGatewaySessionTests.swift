@@ -4,8 +4,10 @@ import XCTest
 
 @MainActor
 final class SoulNestGatewaySessionTests: XCTestCase {
-    func testEndpointRejectsUnsupportedURL() {
-        XCTAssertThrowsError(try SoulNestGatewayEndpoint(url: URL(string: "file:///tmp/gateway")!)) { error in
+    func testEndpointRejectsUnsupportedURL() throws {
+        XCTAssertThrowsError(try SoulNestGatewayEndpoint(
+            url: XCTUnwrap(URL(string: "file:///tmp/gateway"))))
+        { error in
             XCTAssertEqual(error as? SoulNestGatewayError, .invalidEndpoint)
         }
     }
@@ -13,7 +15,7 @@ final class SoulNestGatewaySessionTests: XCTestCase {
     func testConnectAndSendUseInjectedGatewayClient() async throws {
         let client = MockSoulNestGatewayClient()
         let session = SoulNestGatewaySession(client: client)
-        let endpoint = try SoulNestGatewayEndpoint(url: URL(string: "wss://gateway.example.test")!)
+        let endpoint = try SoulNestGatewayEndpoint(url: XCTUnwrap(URL(string: "wss://gateway.example.test")))
 
         await session.connect(to: endpoint)
         let requestID = try await session.sendText("你好", sessionKey: "agent:yujie:soulnest-ios-test")
@@ -30,7 +32,7 @@ final class SoulNestGatewaySessionTests: XCTestCase {
         let client = MockSoulNestGatewayClient()
         client.connectError = .authenticationFailed
         let session = SoulNestGatewaySession(client: client)
-        let endpoint = try SoulNestGatewayEndpoint(url: URL(string: "wss://gateway.example.test")!)
+        let endpoint = try SoulNestGatewayEndpoint(url: XCTUnwrap(URL(string: "wss://gateway.example.test")))
 
         await session.connect(to: endpoint)
 
@@ -50,10 +52,28 @@ final class SoulNestGatewaySessionTests: XCTestCase {
         }
     }
 
+    func testConversationIDResolvesSessionKeyThroughMergedMapping() async throws {
+        let suiteName = "SoulNestGatewaySessionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = SoulNestConversationSessionStore(defaults: defaults)
+        let client = MockSoulNestGatewayClient()
+        let session = SoulNestGatewaySession(client: client)
+        let endpoint = try SoulNestGatewayEndpoint(url: XCTUnwrap(URL(string: "wss://gateway.example.test")))
+
+        await session.connect(to: endpoint)
+        let mapping = store.session(for: UUID())
+        _ = try await session.sendText("你好", sessionKey: mapping.sessionKey)
+
+        XCTAssertEqual(client.sentTexts.map(\.sessionKey), [mapping.sessionKey])
+        XCTAssertEqual(SessionKey.agentId(from: mapping.sessionKey), "yujie")
+    }
+
     func testDisconnectDoesNotExposeTransportDetails() async throws {
         let client = MockSoulNestGatewayClient()
         let session = SoulNestGatewaySession(client: client)
-        let endpoint = try SoulNestGatewayEndpoint(url: URL(string: "https://gateway.example.test")!)
+        let endpoint = try SoulNestGatewayEndpoint(url: XCTUnwrap(URL(string: "https://gateway.example.test")))
         await session.connect(to: endpoint)
 
         await session.disconnect()
