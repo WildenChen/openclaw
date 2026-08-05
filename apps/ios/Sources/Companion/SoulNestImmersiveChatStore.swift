@@ -32,14 +32,21 @@ final class SoulNestImmersiveChatStore {
         !self.gatewaySession.state.isConnected
     }
 
-    /// The state the character scene should present: generation wins over the
-    /// connection state so the artwork switches to thinking while an answer
-    /// streams, and drops back to the connection-derived state on completion.
+    /// The state the character scene should present. A newly started turn is
+    /// thinking until the first assistant text arrives, then talking while the
+    /// response streams. Completion falls back to the connection-derived state.
     var characterState: SoulNestCharacterState {
-        if self.gatewaySession.isGenerating {
-            return .thinking
+        guard self.gatewaySession.isGenerating else {
+            return self.gatewaySession.state.characterState
         }
-        return self.gatewaySession.state.characterState
+
+        if let requestID = self.messages.last(where: { $0.role == .assistant })?.requestID,
+           !self.assistantText(for: requestID).isEmpty
+        {
+            return .talking
+        }
+
+        return .thinking
     }
 
     init(
