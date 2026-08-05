@@ -93,13 +93,20 @@ struct SoulNestMessagePresentationPolicy: Sendable {
 
     private static func kind(forEventType eventType: String?) -> SoulNestMessageKind {
         switch eventType {
-        case "assistant.message", "assistant.final": .assistant
-        case "tool.started", "tool.progress", "tool.completed": .tool
-        case "system.memory", "system.schedule", "system.background": .system
-        case "status", "connection.status": .status
-        case "request.failed", "gateway.error": .error
-        case "debug", "trace": .debug
-        default: .status
+        case "assistant.message", "assistant.final":
+            return .assistant
+        case "tool.started", "tool.progress", "tool.completed":
+            return .tool
+        case "system.memory", "system.schedule", "system.background":
+            return .system
+        case "status", "connection.status":
+            return .status
+        case "request.failed", "gateway.error":
+            return .error
+        case "debug", "trace":
+            return .debug
+        default:
+            return .status
         }
     }
 }
