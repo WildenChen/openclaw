@@ -80,6 +80,30 @@ struct SoulNestImmersiveChatStoreTests {
         #expect(store.assistantText(for: requestID) == "Hello, world!")
     }
 
+    /// A new turn starts in thinking, switches to talking when assistant text
+    /// arrives, and returns to idle after the final event.
+    @Test func `character state follows thinking talking idle transition`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+
+        #expect(store.characterState == .idle)
+
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        #expect(store.characterState == .thinking)
+
+        client.emitText(requestID: requestID, text: "Hi")
+        await self.waitFor { store.characterState == .talking }
+
+        #expect(store.characterState == .talking)
+
+        client.emitText(requestID: requestID, text: "Hi there", isFinal: true)
+        await self.waitFor { store.characterState == .idle }
+
+        #expect(store.characterState == .idle)
+        #expect(store.assistantText(for: requestID) == "Hi there")
+    }
+
     /// When the gateway emits a final event, `isGenerating` should be false and
     /// the final snapshot should still be captured as the assistant text.
     @Test func `is generating false after final event`() async throws {
