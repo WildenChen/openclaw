@@ -1,7 +1,6 @@
 import Foundation
 import XCTest
 @testable import OpenClaw
-
 @MainActor
 final class SoulNestGatewaySessionTests: XCTestCase {
     func testEndpointRejectsUnsupportedURL() throws {
@@ -80,54 +79,5 @@ final class SoulNestGatewaySessionTests: XCTestCase {
 
         XCTAssertEqual(session.state, .disconnected)
         XCTAssertEqual(client.disconnectCount, 1)
-    }
-}
-
-@MainActor
-private final class MockSoulNestGatewayClient: SoulNestGatewayClient {
-    struct SentText: Equatable {
-        let text: String
-        let sessionKey: String
-    }
-
-    var state: SoulNestGatewayConnectionState = .disconnected
-    var connectError: SoulNestGatewayError?
-    var connectedEndpoint: SoulNestGatewayEndpoint?
-    var sentTexts: [SentText] = []
-    var disconnectCount = 0
-
-    private let continuation: AsyncStream<SoulNestGatewayEvent>.Continuation
-    let events: AsyncStream<SoulNestGatewayEvent>
-
-    init() {
-        var continuation: AsyncStream<SoulNestGatewayEvent>.Continuation!
-        self.events = AsyncStream { continuation = $0 }
-        self.continuation = continuation
-    }
-
-    func connect(to endpoint: SoulNestGatewayEndpoint) async throws {
-        if let connectError {
-            self.state = .failed(connectError)
-            throw connectError
-        }
-        self.connectedEndpoint = endpoint
-        self.state = .connected
-        self.continuation.yield(.connectionChanged(.connected))
-    }
-
-    func disconnect() async {
-        self.disconnectCount += 1
-        self.state = .disconnected
-        self.continuation.yield(.connectionChanged(.disconnected))
-    }
-
-    func cancelPairing() async {
-        self.state = .disconnected
-        self.continuation.yield(.connectionChanged(.disconnected))
-    }
-
-    func sendText(_ text: String, sessionKey: String) async throws -> String {
-        self.sentTexts.append(.init(text: text, sessionKey: sessionKey))
-        return "request-\(self.sentTexts.count)"
     }
 }
