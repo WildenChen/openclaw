@@ -11,6 +11,11 @@ final class MockSoulNestGatewayClient: SoulNestGatewayClient {
         let sessionKey: String
     }
 
+    struct AbortCall: Equatable {
+        let sessionKey: String
+        let runId: String
+    }
+
     var state: SoulNestGatewayConnectionState = .disconnected
     var connectError: SoulNestGatewayError?
     var connectedEndpoint: SoulNestGatewayEndpoint?
@@ -18,6 +23,9 @@ final class MockSoulNestGatewayClient: SoulNestGatewayClient {
     var disconnectCount = 0
     var sendShouldFail = false
     var sendFailError: SoulNestGatewayError? = .gatewayUnavailable
+    var abortCalls: [AbortCall] = []
+    var abortShouldFail = false
+    var abortFailError: SoulNestGatewayError? = .gatewayUnavailable
 
     private let continuation: AsyncStream<SoulNestGatewayEvent>.Continuation
     let events: AsyncStream<SoulNestGatewayEvent>
@@ -57,6 +65,16 @@ final class MockSoulNestGatewayClient: SoulNestGatewayClient {
         return "request-\(self.sentTexts.count)"
     }
 
+    func abortRun(sessionKey: String, runId: String) async throws {
+        if self.abortShouldFail {
+            throw self.abortFailError ?? .gatewayUnavailable
+        }
+        self.abortCalls.append(.init(sessionKey: sessionKey, runId: runId))
+        // Mirrors the Gateway's aborted broadcast: after an abort the transport
+        // emits a cancelled failure so the turn settles on the event loop.
+        self.continuation.yield(.requestFailed(requestID: runId, error: .cancelled))
+    }
+
     func emitText(requestID: String, text: String, isFinal: Bool = false) {
         self.continuation.yield(
             .assistantText(requestID: requestID, text: text, isFinal: isFinal))
@@ -64,5 +82,10 @@ final class MockSoulNestGatewayClient: SoulNestGatewayClient {
 
     func emitFailure(requestID: String?, error: SoulNestGatewayError) {
         self.continuation.yield(.requestFailed(requestID: requestID, error: error))
+    }
+
+    func emitConnection(_ state: SoulNestGatewayConnectionState) {
+        self.state = state
+        self.continuation.yield(.connectionChanged(state))
     }
 }

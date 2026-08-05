@@ -15,6 +15,7 @@ protocol SoulNestGatewayClient: AnyObject {
     func disconnect() async
     func cancelPairing() async
     func sendText(_ text: String, sessionKey: String) async throws -> String
+    func abortRun(sessionKey: String, runId: String) async throws
 }
 
 struct SoulNestGatewayEndpoint: Equatable, Sendable {

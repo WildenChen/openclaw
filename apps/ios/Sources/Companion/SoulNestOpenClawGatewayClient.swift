@@ -90,6 +90,17 @@ final class SoulNestOpenClawGatewayClient: SoulNestGatewayClient {
         }
     }
 
+    func abortRun(sessionKey: String, runId: String) async throws {
+        let transport = self.transportProvider()
+        do {
+            try await transport.abortRun(sessionKey: sessionKey, runId: runId)
+        } catch {
+            let mapped = SoulNestGatewaySession.map(error)
+            self.eventContinuation.yield(.requestFailed(requestID: runId, error: mapped))
+            throw mapped
+        }
+    }
+
     private func observeConnectionChanges() {
         self.connectionObserverTask?.cancel()
         let connection = self.connection
@@ -125,11 +136,20 @@ final class SoulNestOpenClawGatewayClient: SoulNestGatewayClient {
     }
 
     private func forward(_ chat: OpenClawChatEventPayload) {
+        let isFinal = chat.state == "final"
         if let text = OpenClawChatEventText.assistantText(from: chat) {
             self.eventContinuation.yield(.assistantText(
                 requestID: chat.runId ?? "",
                 text: text,
-                isFinal: chat.state == "final"))
+                isFinal: isFinal))
+        } else if isFinal, let runID = chat.runId {
+            // A bare final marker still ends the turn even when the payload
+            // carries no text snapshot, so the session does not stall waiting
+            // for a timeout.
+            self.eventContinuation.yield(.assistantText(
+                requestID: runID,
+                text: "",
+                isFinal: true))
         }
         switch chat.state {
         case "error":

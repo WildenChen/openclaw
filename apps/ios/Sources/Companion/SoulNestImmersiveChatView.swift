@@ -113,13 +113,18 @@ struct SoulNestImmersiveChatView: View {
                     .font(.system(size: 28))
                     .foregroundStyle(OpenClawBrand.accent)
             }
-            Text(displayedText.isEmpty ? "…" : displayedText)
-                .font(OpenClawType.body)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(message.role == .user ? OpenClawBrand.accent : OpenClawBrand.obsidian)
-                .foregroundStyle(message.role == .user ? .white : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
+                Text(displayedText.isEmpty ? "…" : displayedText)
+                    .font(OpenClawType.body)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(message.role == .user ? OpenClawBrand.accent : OpenClawBrand.obsidian)
+                    .foregroundStyle(message.role == .user ? .white : .primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                if message.role == .assistant {
+                    self.turnStatus(message)
+                }
+            }
             if message.role == .user {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 28))
@@ -127,6 +132,41 @@ struct SoulNestImmersiveChatView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+
+    /// Terminal-turn feedback: a stopped or failed response keeps its partial
+    /// text and shows why it ended plus an in-place retry.
+    @ViewBuilder
+    private func turnStatus(_ message: SoulNestChatMessage) -> some View {
+        switch message.status {
+        case .queued, .thinking, .streaming, .completed:
+            EmptyView()
+        case .cancelled:
+            HStack(spacing: 8) {
+                Text("Stopped")
+                    .font(OpenClawType.caption)
+                    .foregroundStyle(.secondary)
+                self.retryButton
+            }
+        case let .failed(error):
+            HStack(spacing: 8) {
+                Text(error.userMessage)
+                    .font(OpenClawType.caption)
+                    .foregroundStyle(OpenClawBrand.danger)
+                self.retryButton
+            }
+        }
+    }
+
+    private var retryButton: some View {
+        Button {
+            Task { await self.store.retryLastFailedTurn() }
+        } label: {
+            Text("Retry")
+                .font(OpenClawType.caption)
+                .foregroundStyle(OpenClawBrand.accent)
+        }
+        .accessibilityLabel("Retry message")
     }
 
     private var thinkingIndicator: some View {
@@ -154,6 +194,24 @@ struct SoulNestImmersiveChatView: View {
                 .disabled(self.isInputDisabled)
                 .focused(self.$isInputFocused)
                 .accessibilityLabel("Message")
+            self.sendOrStopButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private var sendOrStopButton: some View {
+        if self.store.isGenerating {
+            Button {
+                Task { await self.store.stopGenerating() }
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(OpenClawBrand.accent)
+                    .accessibilityLabel("Stop generating")
+            }
+        } else {
             Button {
                 let text = self.textInput
                 Task {
@@ -166,9 +224,7 @@ struct SoulNestImmersiveChatView: View {
                     .foregroundStyle(OpenClawBrand.accent)
                     .accessibilityLabel("Send")
             }
-            .disabled(self.isInputDisabled || self.textInput.isEmpty)
+            .disabled(self.textInput.isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 }
