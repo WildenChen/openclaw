@@ -41,6 +41,25 @@ enum SoulNestGatewayConnectionState: Equatable, Sendable {
     case failed(SoulNestGatewayError)
 }
 
+extension SoulNestGatewayConnectionState {
+    /// True when a text turn can be started.
+    var isConnected: Bool {
+        if case .connected = self { return true }
+        return false
+    }
+
+    /// The character state the scene presents for this connection. Reconnecting
+    /// and connecting read as thinking; anything unusable reads as offline so
+    /// the UI never suggests a live companion while the gateway is down.
+    var characterState: SoulNestCharacterState {
+        switch self {
+        case .connected: .idle
+        case .connecting, .reconnecting: .thinking
+        case .pairing, .failed, .disconnected: .offline
+        }
+    }
+}
+
 enum SoulNestGatewayEvent: Equatable, Sendable {
     case connectionChanged(SoulNestGatewayConnectionState)
     case assistantText(requestID: String, text: String, isFinal: Bool)

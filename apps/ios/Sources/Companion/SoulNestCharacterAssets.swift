@@ -11,11 +11,11 @@ enum SoulNestCharacterState: String, Codable, CaseIterable, Sendable {
 extension SoulNestCharacterState {
     var humanReadable: String {
         switch self {
-        case .idle: return "Idle"
-        case .thinking: return "Thinking..."
-        case .listening: return "Listening..."
-        case .talking: return "Talking"
-        case .offline: return "Offline"
+        case .idle: "Idle"
+        case .thinking: "Thinking..."
+        case .listening: "Listening..."
+        case .talking: "Talking"
+        case .offline: "Offline"
         }
     }
 }
@@ -135,7 +135,7 @@ struct SoulNestCharacterAssetPack: Codable, Equatable, Identifiable, Sendable {
 
     /// States `outfitID` cannot render directly and would fall back to idle.
     func missingStates(for outfitID: String) -> Set<SoulNestCharacterState> {
-        guard let outfit = self.outfits.first(where: { $0.id == outfitID }) else {
+        guard let outfit = outfits.first(where: { $0.id == outfitID }) else {
             return Set(SoulNestCharacterState.allCases)
         }
         let present = Set(outfit.assets.map(\.state))

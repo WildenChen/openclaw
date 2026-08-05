@@ -8,7 +8,8 @@ import Observation
 final class SoulNestImmersiveChatStore {
     private let gatewaySession: SoulNestGatewaySession
     private let lifecycle: SoulNestConversationLifecycle
-    private let profile: SoulNestAgentProfile
+
+    let profile: SoulNestAgentProfile
 
     private(set) var messages: [SoulNestChatMessage] = []
     private(set) var isSending = false
@@ -26,6 +27,21 @@ final class SoulNestImmersiveChatStore {
         self.gatewaySession.isGenerating
     }
 
+    /// True when the gateway connection is not usable for a text turn.
+    var isOffline: Bool {
+        !self.gatewaySession.state.isConnected
+    }
+
+    /// The state the character scene should present: generation wins over the
+    /// connection state so the artwork switches to thinking while an answer
+    /// streams, and drops back to the connection-derived state on completion.
+    var characterState: SoulNestCharacterState {
+        if self.gatewaySession.isGenerating {
+            return .thinking
+        }
+        return self.gatewaySession.state.characterState
+    }
+
     init(
         profile: SoulNestAgentProfile = .yujie,
         gatewaySession: SoulNestGatewaySession,
@@ -39,7 +55,7 @@ final class SoulNestImmersiveChatStore {
     }
 
     func startNewConversation() {
-        let _ = self.lifecycle.createConversation()
+        _ = self.lifecycle.createConversation()
         self.messages = []
         self.showError = false
     }
@@ -47,7 +63,7 @@ final class SoulNestImmersiveChatStore {
     func sendText(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard case .ready(sessionKey: let sessionKey) = self.lifecycle.status else { return }
+        guard case let .ready(sessionKey: sessionKey) = lifecycle.status else { return }
 
         self.isSending = true
         self.showError = false
@@ -61,7 +77,7 @@ final class SoulNestImmersiveChatStore {
         self.messages.append(userMessage)
 
         do {
-            let runID = try await self.gatewaySession.sendText(trimmed, sessionKey: sessionKey)
+            let runID = try await gatewaySession.sendText(trimmed, sessionKey: sessionKey)
             let assistantMessage = SoulNestChatMessage(
                 id: UUID(),
                 role: .assistant,
@@ -82,7 +98,7 @@ final class SoulNestImmersiveChatStore {
     }
 
     private func removeLastUserMessage() {
-        if let last = self.messages.last, last.role == .user {
+        if let last = messages.last, last.role == .user {
             self.messages.removeLast()
         }
     }

@@ -3,23 +3,44 @@ import Testing
 @testable import OpenClaw
 
 /// Tests for `SoulNestImmersiveChatStore` and the assistant text streaming flow.
+@MainActor
 struct SoulNestImmersiveChatStoreTests {
-    /// When `sendText` succeeds, the store should add a user message and an
-    /// assistant placeholder with the correct requestID.
-    @Test func sendTextAddsUserAndAssistantMessages() async throws {
+    /// Polls until `condition` holds, yielding to the main actor so the
+    /// session's event task can deliver emitted gateway events.
+    private func waitFor(
+        _ timeout: TimeInterval = 2,
+        until condition: @MainActor @Sendable () -> Bool) async
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            await Task.yield()
+        }
+    }
+
+    /// Drives a fully connected session so `sendText` reaches the mock client.
+    private func makeConnectedStore() async throws
+        -> (client: MockSoulNestGatewayClient, session: SoulNestGatewaySession, store: SoulNestImmersiveChatStore)
+    {
         let client = MockSoulNestGatewayClient()
         let session = SoulNestGatewaySession(client: client)
         let lifecycle = SoulNestConversationLifecycle(
             store: SoulNestConversationSessionStore(),
             profile: .yujie)
-
-        client.simulateConnect()
         _ = lifecycle.createConversation()
-
+        let endpoint = try SoulNestGatewayEndpoint(
+            url: URL(string: "wss://gateway.example.test")!)
+        await session.connect(to: endpoint)
         let store = SoulNestImmersiveChatStore(
             profile: .yujie,
             gatewaySession: session,
             lifecycle: lifecycle)
+        return (client, session, store)
+    }
+
+    /// When `sendText` succeeds, the store should add a user message and an
+    /// assistant placeholder with the correct requestID.
+    @Test func `send text adds user and assistant messages`() async throws {
+        let (_, _, store) = try await self.makeConnectedStore()
 
         await store.sendText("Hello")
 
@@ -32,21 +53,8 @@ struct SoulNestImmersiveChatStoreTests {
     }
 
     /// When `sendText` fails, the store should not leave a user message behind.
-    @Test func sendTextFailureRemovesUserMessage() async throws {
-        let client = MockSoulNestGatewayClient()
-        let session = SoulNestGatewaySession(client: client)
-        let lifecycle = SoulNestConversationLifecycle(
-            store: SoulNestConversationSessionStore(),
-            profile: .yujie)
-
-        client.simulateConnect()
-        _ = lifecycle.createConversation()
-
-        let store = SoulNestImmersiveChatStore(
-            profile: .yujie,
-            gatewaySession: session,
-            lifecycle: lifecycle)
-
+    @Test func `send text failure removes user message`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
         client.sendShouldFail = true
 
         await store.sendText("Hi")
@@ -55,59 +63,39 @@ struct SoulNestImmersiveChatStoreTests {
         #expect(store.showError == true)
     }
 
-    /// When the gateway session receives assistant text events, the store
-    /// should expose the accumulated text via `assistantText`.
-    @Test func assistantTextAccumulatesFromGatewayEvents() async throws {
-        let client = MockSoulNestGatewayClient()
-        let session = SoulNestGatewaySession(client: client)
-        let lifecycle = SoulNestConversationLifecycle(
-            store: SoulNestConversationSessionStore(),
-            profile: .yujie)
-
-        client.simulateConnect()
-        _ = lifecycle.createConversation()
-
-        let store = SoulNestImmersiveChatStore(
-            profile: .yujie,
-            gatewaySession: session,
-            lifecycle: lifecycle)
+    /// Gateway chat events carry the full assistant snapshot on each update, so
+    /// a later event replaces the earlier text for the same requestID.
+    @Test func `assistant text replaces on each full-snapshot event`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
 
         await store.sendText("Hello")
 
-        let requestID = store.messages[1].requestID!
+        let requestID = try #require(store.messages.last?.requestID)
 
         client.emitText(requestID: requestID, text: "Hello")
-        client.emitText(requestID: requestID, text: ", ")
-        client.emitText(requestID: requestID, text: "world!")
+        client.emitText(requestID: requestID, text: "Hello, world!")
 
-        let accumulated = store.assistantText(for: requestID)
-        #expect(accumulated == "Hello, world!")
+        await self.waitFor { store.assistantText(for: requestID) == "Hello, world!" }
+
+        #expect(store.assistantText(for: requestID) == "Hello, world!")
     }
 
-    /// When the gateway emits a final text event, `isGenerating` should be false.
-    @Test func isGeneratingFalseAfterFinalEvent() async throws {
-        let client = MockSoulNestGatewayClient()
-        let session = SoulNestGatewaySession(client: client)
-        let lifecycle = SoulNestConversationLifecycle(
-            store: SoulNestConversationSessionStore(),
-            profile: .yujie)
-
-        client.simulateConnect()
-        _ = lifecycle.createConversation()
-
-        let store = SoulNestImmersiveChatStore(
-            profile: .yujie,
-            gatewaySession: session,
-            lifecycle: lifecycle)
+    /// When the gateway emits a final event, `isGenerating` should be false and
+    /// the final snapshot should still be captured as the assistant text.
+    @Test func `is generating false after final event`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
 
         await store.sendText("Hello")
 
-        let requestID = store.messages[1].requestID!
+        let requestID = try #require(store.messages.last?.requestID)
 
         #expect(store.isGenerating == true)
 
         client.emitText(requestID: requestID, text: "Hi", isFinal: true)
 
+        await self.waitFor { store.isGenerating == false }
+
         #expect(store.isGenerating == false)
+        #expect(store.assistantText(for: requestID) == "Hi")
     }
 }

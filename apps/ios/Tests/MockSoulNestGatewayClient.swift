@@ -1,4 +1,5 @@
 import Foundation
+@testable import OpenClaw
 
 /// Shared test mock for `SoulNestGatewayClient`. Provides fine-grained control
 /// over connection state and event emission so store/session tests can drive
@@ -54,10 +55,6 @@ final class MockSoulNestGatewayClient: SoulNestGatewayClient {
         }
         self.sentTexts.append(.init(text: text, sessionKey: sessionKey))
         return "request-\(self.sentTexts.count)"
-    }
-
-    func simulateConnect() {
-        self.state = .connected
     }
 
     func emitText(requestID: String, text: String, isFinal: Bool = false) {

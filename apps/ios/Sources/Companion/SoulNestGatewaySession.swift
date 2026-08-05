@@ -54,7 +54,7 @@ final class SoulNestGatewaySession {
             throw SoulNestGatewayError.notConnected
         }
         do {
-            let runID = try await self.client.sendText(text, sessionKey: sessionKey)
+            let runID = try await client.sendText(text, sessionKey: sessionKey)
             self.assistantText[runID] = ""
             self.isGenerating = true
             return runID
@@ -78,11 +78,13 @@ final class SoulNestGatewaySession {
                         self.lastError = error
                     }
                 case let .assistantText(requestID, text, isFinal):
-                    if isFinal {
-                        self.isGenerating = false
-                    } else {
-                        self.isGenerating = true
-                        self.assistantText[requestID, default: ""] += text
+                    // Gateway chat events carry the latest full assistant
+                    // snapshot on every update, so each event replaces the
+                    // previous text. An empty event (e.g. a bare final marker)
+                    // must not wipe the visible response.
+                    self.isGenerating = !isFinal
+                    if !text.isEmpty {
+                        self.assistantText[requestID] = text
                     }
                 case let .requestFailed(_, error):
                     self.isGenerating = false

@@ -1,6 +1,8 @@
-import OpenClawKit
 import SwiftUI
 
+/// The immersive chat bottom panel. Sits under the character scene on the same
+/// screen and owns the message list, input bar, thinking indicator, and the
+/// connection/error feedback so every send outcome is visible.
 struct SoulNestImmersiveChatView: View {
     @Bindable private var store: SoulNestImmersiveChatStore
     @State private var textInput = ""
@@ -10,40 +12,68 @@ struct SoulNestImmersiveChatView: View {
         self.store = store
     }
 
+    private var isInputDisabled: Bool {
+        self.store.isSending || self.store.isGenerating || self.store.isOffline
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            messageList
-                .safeAreaInset(edge: .bottom) {
-                    inputBar
-                        .background(.ultraThinMaterial)
-                }
+            if self.store.showError {
+                self.errorBanner
+            } else if self.store.isOffline, !self.store.isGenerating {
+                self.offlineBanner
+            }
+            self.messageList
+            self.inputBar
         }
-        .background(OpenClawBrand.void)
-        .onAppear {
-            self.store.startNewConversation()
+    }
+
+    private var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 14))
+            Text("Not connected to Gateway")
+                .font(OpenClawType.caption)
+            Spacer()
         }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private var errorBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14))
+            Text("Could not send. Check the connection and try again.")
+                .font(OpenClawType.caption)
+            Spacer()
+        }
+        .foregroundStyle(OpenClawBrand.danger)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16) {
-                    if self.store.messages.isEmpty && !self.store.isSending {
-                        characterIdlePlaceholder
+                LazyVStack(spacing: 12) {
+                    if self.store.messages.isEmpty, !self.store.isSending {
+                        self.emptyHint
                     }
                     ForEach(self.store.messages) { message in
-                        messageBubble(message)
+                        self.messageBubble(message)
                             .id(message.id)
                     }
                     if self.store.isGenerating {
-                        thinkingIndicator
+                        self.thinkingIndicator
                             .id("thinking")
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 20)
+                .padding(.vertical, 12)
             }
-            .scrollDismissDisplaysScrollIndicators(false)
+            .frame(minHeight: 0, maxHeight: 180)
             .onChange(of: self.store.messages) { _, messages in
                 if let last = messages.last {
                     withAnimation {
@@ -61,29 +91,20 @@ struct SoulNestImmersiveChatView: View {
         }
     }
 
-    private var characterIdlePlaceholder: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(OpenClawBrand.accent)
-            Text(self.store.profile.displayName)
-                .font(OpenClawType.subheadline)
-                .foregroundStyle(.secondary)
-            Text("Send a message to start the conversation.")
-                .font(OpenClawType.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 40)
+    private var emptyHint: some View {
+        Text("Send a message to start the conversation.")
+            .font(OpenClawType.caption)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
     }
 
     @ViewBuilder
     private func messageBubble(_ message: SoulNestChatMessage) -> some View {
-        let displayedText: String
-        if message.role == .assistant && message.isStreaming {
-            displayedText = self.store.assistantText(for: message.requestID ?? "")
+        let displayedText: String = if message.role == .assistant, message.isStreaming {
+            self.store.assistantText(for: message.requestID ?? "")
         } else {
-            displayedText = message.text
+            message.text
         }
 
         HStack(alignment: .bottom, spacing: 8) {
@@ -96,7 +117,7 @@ struct SoulNestImmersiveChatView: View {
                 .font(OpenClawType.body)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(message.role == .user ? OpenClawBrand.accent : OpenClawGray.field)
+                .background(message.role == .user ? OpenClawBrand.accent : OpenClawBrand.obsidian)
                 .foregroundStyle(message.role == .user ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             if message.role == .user {
@@ -121,27 +142,22 @@ struct SoulNestImmersiveChatView: View {
                 .frame(width: 6, height: 6)
         }
         .padding(12)
-        .background(OpenClawGray.field)
+        .background(OpenClawBrand.obsidian)
         .clipShape(Capsule())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var inputBar: some View {
         HStack(spacing: 12) {
-            Button(action: {}) label: {
-                Image(systemName: "waveform")
-                    .font(.system(size: 20))
-                    .foregroundStyle(OpenClawBrand.accent)
-                    .accessibilityLabel("Voice input")
-            }
-            TextField("", text: $textInput, axis: .horizontal, prompt: Text("Message").font(OpenClawType.body))
+            TextField("", text: self.$textInput, prompt: Text("Message").font(OpenClawType.body), axis: .horizontal)
                 .font(OpenClawType.body)
-                .disabled(self.store.isSending || self.store.isGenerating)
-                .focused($isInputFocused)
+                .disabled(self.isInputDisabled)
+                .focused(self.$isInputFocused)
                 .accessibilityLabel("Message")
             Button {
+                let text = self.textInput
                 Task {
-                    await self.store.sendText(self.textInput)
+                    await self.store.sendText(text)
                     self.textInput = ""
                 }
             } label: {
@@ -150,7 +166,7 @@ struct SoulNestImmersiveChatView: View {
                     .foregroundStyle(OpenClawBrand.accent)
                     .accessibilityLabel("Send")
             }
-            .disabled(self.store.isSending || self.store.isGenerating || self.textInput.isEmpty)
+            .disabled(self.isInputDisabled || self.textInput.isEmpty)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
