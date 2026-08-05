@@ -97,6 +97,85 @@ final class SoulNestOpenClawGatewayClientTests: XCTestCase {
         await self.waitUntil { collector.containsRequestFailed(requestID: "run-7") }
     }
 
+    func testAbortRunDelegatesToTransport() async throws {
+        let connection = MockSoulNestGatewayConnection(state: .connected)
+        let transport = FakeChatTransport()
+        let client = SoulNestOpenClawGatewayClient(connection: connection) { transport }
+
+        try await client.abortRun(
+            sessionKey: "agent:yujie:soulnest-ios-test",
+            runId: "run-1")
+
+        XCTAssertEqual(transport.abortCalls, [
+            .init(sessionKey: "agent:yujie:soulnest-ios-test", runId: "run-1"),
+        ])
+    }
+
+    func testAbortRunMapsTransportFailureAndEmitsRequestFailed() async throws {
+        let connection = MockSoulNestGatewayConnection(state: .connected)
+        let transport = FakeChatTransport()
+        transport.abortError = NSError(
+            domain: NSURLErrorDomain,
+            code: NSURLErrorTimedOut,
+            userInfo: nil)
+        let client = SoulNestOpenClawGatewayClient(connection: connection) { transport }
+        let collector = EventCollector(stream: client.events)
+        defer { collector.cancel() }
+
+        do {
+            try await client.abortRun(
+                sessionKey: "agent:yujie:soulnest-ios-test",
+                runId: "run-1")
+            XCTFail("Expected requestTimedOut")
+        } catch {
+            XCTAssertEqual(error as? SoulNestGatewayError, .requestTimedOut)
+        }
+        await self.waitUntil { collector.containsRequestFailed(requestID: "run-1", error: .requestTimedOut) }
+    }
+
+    func testAbortedChatEventForwardsPartialTextThenCancelled() async {
+        let connection = MockSoulNestGatewayConnection(state: .connected)
+        let transport = FakeChatTransport()
+        transport.eventsToEmit = [
+            .chat(OpenClawChatEventPayload(
+                runId: "run-1",
+                sessionKey: "agent:yujie:soulnest-ios-test",
+                state: "aborted",
+                message: AnyCodable([
+                    "role": "assistant",
+                    "content": [["type": "text", "text": "Partial reply"]],
+                ]),
+                errorMessage: nil)),
+        ]
+        let client = SoulNestOpenClawGatewayClient(connection: connection) { transport }
+        let collector = EventCollector(stream: client.events)
+        defer { collector.cancel() }
+
+        await self.waitUntil {
+            collector.containsAssistantText(requestID: "run-1", isFinal: false)
+                && collector.containsRequestFailed(requestID: "run-1", error: .cancelled)
+        }
+    }
+
+    func testBareFinalEventStillCompletesTheTurn() async {
+        let connection = MockSoulNestGatewayConnection(state: .connected)
+        let transport = FakeChatTransport()
+        transport.eventsToEmit = [
+            .chat(OpenClawChatEventPayload(
+                runId: "run-1",
+                sessionKey: "agent:yujie:soulnest-ios-test",
+                state: "final",
+                message: nil,
+                errorMessage: nil)),
+        ]
+        let client = SoulNestOpenClawGatewayClient(connection: connection) { transport }
+        let collector = EventCollector(stream: client.events)
+        defer { collector.cancel() }
+
+        await self.waitUntil { collector.containsAssistantText(requestID: "run-1", isFinal: true) }
+        XCTAssertFalse(collector.containsRequestFailed())
+    }
+
     func testConnectDelegatesAndThrowsMappedFailure() async throws {
         let connection = MockSoulNestGatewayConnection()
         connection.connectError = .authenticationFailed
@@ -327,16 +406,27 @@ private final class FakeChatTransport: OpenClawChatTransport, @unchecked Sendabl
         let message: String
     }
 
+    struct AbortCall: Equatable {
+        let sessionKey: String
+        let runId: String
+    }
+
     private struct State: Sendable {
         var sendCalls: [SendCall] = []
+        var abortCalls: [AbortCall] = []
         var eventsToEmit: [OpenClawChatTransportEvent] = []
         var sendError: (any Error & Sendable)?
+        var abortError: (any Error & Sendable)?
     }
 
     private let lock = OSAllocatedUnfairLock(initialState: State())
 
     var sendCalls: [SendCall] {
         self.lock.withLock { $0.sendCalls }
+    }
+
+    var abortCalls: [AbortCall] {
+        self.lock.withLock { $0.abortCalls }
     }
 
     var eventsToEmit: [OpenClawChatTransportEvent] {
@@ -347,6 +437,20 @@ private final class FakeChatTransport: OpenClawChatTransport, @unchecked Sendabl
     var sendError: (any Error & Sendable)? {
         get { self.lock.withLock { $0.sendError } }
         set { self.lock.withLock { $0.sendError = newValue } }
+    }
+
+    var abortError: (any Error & Sendable)? {
+        get { self.lock.withLock { $0.abortError } }
+        set { self.lock.withLock { $0.abortError = newValue } }
+    }
+
+    func abortRun(sessionKey: String, runId: String) async throws {
+        if let abortError {
+            throw abortError
+        }
+        self.lock.withLock { state in
+            state.abortCalls.append(.init(sessionKey: sessionKey, runId: runId))
+        }
     }
 
     func requestHistory(sessionKey: String) async throws -> OpenClawChatHistoryPayload {

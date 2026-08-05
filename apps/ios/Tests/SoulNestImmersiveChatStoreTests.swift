@@ -122,4 +122,203 @@ struct SoulNestImmersiveChatStoreTests {
         #expect(store.isGenerating == false)
         #expect(store.assistantText(for: requestID) == "Hi")
     }
+
+    // MARK: - Cancel
+
+    /// Stopping the turn calls the underlying `abortRun` and marks the message
+    /// cancelled while keeping the partial text visible.
+    @Test func `stop cancels the underlying run and keeps partial text`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitText(requestID: requestID, text: "Partial reply")
+        await self.waitFor { store.assistantText(for: requestID) == "Partial reply" }
+
+        await store.stopGenerating()
+
+        await self.waitFor { store.messages.last?.status == .cancelled }
+
+        #expect(store.isGenerating == false)
+        #expect(client.abortCalls.count == 1)
+        #expect(client.abortCalls.first?.runId == requestID)
+        #expect(store.messages.last?.status == .cancelled)
+        #expect(store.messages.last?.isRetryable == true)
+        #expect(store.messages.last?.text == "Partial reply")
+    }
+
+    /// An aborted gateway event (the "aborted" chat state) also maps to a
+    /// cancelled turn.
+    @Test func `aborted gateway event maps to cancelled`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitFailure(requestID: requestID, error: .cancelled)
+
+        await self.waitFor { store.messages.last?.status == .cancelled }
+
+        #expect(store.isGenerating == false)
+    }
+
+    // MARK: - Retry
+
+    /// A failed turn retries in place: the user message is not duplicated, the
+    /// retry uses a fresh request id on the same session key, and the failed
+    /// partial stays in the transcript.
+    @Test func `failed turn retries in place without duplicating the user message`() async throws {
+        let (client, session, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let firstID = try #require(store.messages.last?.requestID)
+        let sessionKey = try #require(store.currentSessionKey)
+
+        client.emitFailure(requestID: firstID, error: .gatewayUnavailable)
+        await self.waitFor { store.messages.last?.status == .failed(.gatewayUnavailable) }
+        #expect(store.messages.filter { $0.role == .user }.count == 1)
+
+        await store.retryLastFailedTurn()
+
+        await self.waitFor { store.messages.last?.requestID != firstID }
+
+        let retryMessage = try #require(store.messages.last)
+        #expect(retryMessage.role == .assistant)
+        #expect(retryMessage.requestID != nil)
+        #expect(retryMessage.isStreaming)
+        #expect(store.messages.filter { $0.role == .user }.count == 1)
+        #expect(store.messages.first(where: { $0.role == .user })?.text == "Hello")
+        #expect(store.messages.contains { $0.status == .failed(.gatewayUnavailable) })
+        #expect(client.sentTexts.count == 2)
+        #expect(client.sentTexts.last?.text == "Hello")
+        #expect(client.sentTexts.last?.sessionKey == sessionKey)
+        #expect(session.assistantText[firstID] != nil)
+    }
+
+    // MARK: - Timeout
+
+    /// A stalled turn times out: the underlying run is cancelled, `isGenerating`
+    /// stops, and the message becomes a retryable failure.
+    @Test func `stalled turn times out and surfaces a retryable failure`() async throws {
+        let client = MockSoulNestGatewayClient()
+        let session = SoulNestGatewaySession(client: client, responseTimeout: .milliseconds(20))
+        let lifecycle = SoulNestConversationLifecycle(
+            store: SoulNestConversationSessionStore(),
+            profile: .yujie)
+        _ = lifecycle.createConversation()
+        let endpoint = try SoulNestGatewayEndpoint(
+            url: #require(URL(string: "wss://gateway.example.test")))
+        await session.connect(to: endpoint)
+        let store = SoulNestImmersiveChatStore(
+            profile: .yujie,
+            gatewaySession: session,
+            lifecycle: lifecycle)
+
+        await store.sendText("Hello")
+
+        await self.waitFor { store.messages.last?.status == .failed(.requestTimedOut) }
+
+        #expect(store.isGenerating == false)
+        #expect(client.abortCalls.count == 1)
+        #expect(store.messages.last?.isRetryable == true)
+    }
+
+    // MARK: - Connection loss
+
+    /// Dropping the connection ends the in-flight turn with a network failure,
+    /// keeps the partial text, and a later reconnect does not replay or resend
+    /// anything.
+    @Test func `connection loss ends the active turn and reconnect does not resend`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitText(requestID: requestID, text: "Partial reply")
+        await self.waitFor { store.assistantText(for: requestID) == "Partial reply" }
+
+        client.emitConnection(.disconnected)
+
+        await self.waitFor { store.messages.last?.status == .failed(.networkUnavailable) }
+
+        #expect(store.isGenerating == false)
+        #expect(store.messages.last?.text == "Partial reply")
+
+        client.emitConnection(.connected)
+        await self.waitFor { !store.isOffline }
+
+        #expect(store.messages.count == 2)
+        #expect(client.sentTexts.count == 1)
+    }
+
+    // MARK: - Malformed and stale events
+
+    /// Events for unknown or empty request ids are ignored so a stale or
+    /// malformed event cannot pollute the visible response.
+    @Test func `stale events for unknown request ids are ignored`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitText(requestID: "stale-other", text: "pollution")
+        client.emitFailure(requestID: "stale-other", error: .gatewayUnavailable)
+        client.emitText(requestID: "", text: "pollution", isFinal: true)
+        client.emitText(requestID: requestID, text: "Good", isFinal: true)
+
+        await self.waitFor { store.messages.last?.status == .completed }
+
+        #expect(store.assistantText(for: "stale-other").isEmpty)
+        #expect(store.assistantText(for: requestID) == "Good")
+        #expect(store.messages.last?.text == "Good")
+        #expect(store.isGenerating == false)
+    }
+
+    /// A duplicate final event after the turn completed is ignored.
+    @Test func `duplicate final event is ignored`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitText(requestID: requestID, text: "Done", isFinal: true)
+        await self.waitFor { store.messages.last?.status == .completed }
+
+        client.emitText(requestID: requestID, text: "Done, changed", isFinal: true)
+        await self.waitFor { store.isGenerating == false }
+
+        #expect(store.assistantText(for: requestID) == "Done")
+        #expect(store.messages.last?.text == "Done")
+        #expect(store.messages.last?.status == .completed)
+    }
+
+    /// A non-final chunk after the final event is ignored.
+    @Test func `chunk after final event is ignored`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitText(requestID: requestID, text: "Done", isFinal: true)
+        await self.waitFor { store.messages.last?.status == .completed }
+
+        client.emitText(requestID: requestID, text: "Extra")
+        await self.waitFor { store.isGenerating == false }
+
+        #expect(store.assistantText(for: requestID) == "Done")
+        #expect(store.messages.last?.text == "Done")
+        #expect(store.messages.last?.status == .completed)
+    }
+
+    // MARK: - Session expiry
+
+    /// A `.sessionExpired` gateway failure drives the lifecycle to issue a
+    /// fresh session key without replaying transcript.
+    @Test func `session expired failure replaces the session key`() async throws {
+        let (client, _, store) = try await self.makeConnectedStore()
+        let originalKey = try #require(store.currentSessionKey)
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+
+        client.emitFailure(requestID: requestID, error: .sessionExpired)
+
+        await self.waitFor { store.currentSessionKey != originalKey }
+
+        #expect(store.messages.last?.status == .failed(.sessionExpired))
+        #expect(store.isGenerating == false)
+    }
 }

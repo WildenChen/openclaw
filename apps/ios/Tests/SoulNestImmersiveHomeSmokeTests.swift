@@ -95,4 +95,35 @@ struct SoulNestImmersiveHomeSmokeTests {
         #expect(SoulNestGatewayConnectionState.connected.characterState == .idle)
         #expect(SoulNestGatewayConnectionState.reconnecting(attempt: 1).characterState == .thinking)
     }
+
+    @Test @MainActor func `hosted chat hosts the stop control and cancels the turn`() async throws {
+        let (client, session) = try await Self.makeConnectedSession()
+        let lifecycle = SoulNestConversationLifecycle(
+            store: SoulNestConversationSessionStore(),
+            profile: .yujie)
+        _ = lifecycle.createConversation()
+        let store = SoulNestImmersiveChatStore(
+            profile: .yujie,
+            gatewaySession: session,
+            lifecycle: lifecycle)
+
+        let window = Self.host(
+            SoulNestImmersiveChatView(store: store),
+            size: CGSize(width: 393, height: 400))
+        defer { window.isHidden = true }
+
+        await store.sendText("Hello")
+        let requestID = try #require(store.messages.last?.requestID)
+        client.emitText(requestID: requestID, text: "Partial")
+
+        await self.waitFor { store.characterState == .talking }
+        #expect(store.characterState == .talking)
+
+        await store.stopGenerating()
+        await self.waitFor { store.messages.last?.status == .cancelled }
+
+        #expect(store.isGenerating == false)
+        #expect(client.abortCalls.count == 1)
+        #expect(store.messages.last?.text == "Partial")
+    }
 }
