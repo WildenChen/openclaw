@@ -17,6 +17,9 @@ targets:
       configs:
         Debug:
           OPENCLAW_URL_SCHEME: soulnest-debug
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest
     info:
       properties:
         CFBundleDisplayName: SoulNest
