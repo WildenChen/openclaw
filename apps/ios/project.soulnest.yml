@@ -1,0 +1,90 @@
+# SoulNest branding spec for the upstream OpenClaw iOS project.
+# XcodeGen resolves project.yml first, then applies these SoulNest overrides.
+
+name: OpenClaw
+include:
+  - project.yml
+
+options:
+  bundleIdPrefix: com.wildenstudio
+
+targets:
+  OpenClaw:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
+        OPENCLAW_URL_SCHEME: soulnest
+      configs:
+        Debug:
+          OPENCLAW_URL_SCHEME: soulnest-debug
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest
+    info:
+      properties:
+        CFBundleDisplayName: SoulNest
+        CFBundleURLTypes:
+          - CFBundleURLName: com.wildenstudio.soulnest
+            CFBundleURLSchemes:
+              - "$(OPENCLAW_URL_SCHEME)"
+        NSLocalNetworkUsageDescription: SoulNest discovers and connects to your OpenClaw Gateway on the local network.
+        NSCameraUsageDescription: SoulNest uses the camera when you scan an OpenClaw Gateway setup QR code or explicitly share a photo or short video with your paired assistant.
+        NSCalendarsUsageDescription: SoulNest uses your calendars to show events and scheduling context when you enable calendar access.
+        NSCalendarsFullAccessUsageDescription: SoulNest uses your calendars to show events and scheduling context when you enable calendar access.
+        NSCalendarsWriteOnlyAccessUsageDescription: SoulNest uses your calendars to add events when you enable calendar access.
+        NSContactsUsageDescription: SoulNest uses your contacts so you can search and reference people while using your assistant.
+        NSLocationWhenInUseUsageDescription: SoulNest uses your location when you allow location sharing.
+        NSLocationAlwaysAndWhenInUseUsageDescription: SoulNest can share your location in the background when you explicitly enable Always.
+        NSMicrophoneUsageDescription: SoulNest uses the microphone for realtime chat, voice wake, push-to-talk, and voice notes.
+        NSMotionUsageDescription: SoulNest may use motion data to support device-aware interactions and automations.
+        NSHealthShareUsageDescription: SoulNest reads the health data you select to create summaries you request and sends those summaries through your OpenClaw Gateway to your configured AI provider.
+        NSHealthUpdateUsageDescription: SoulNest does not write to Apple Health. It uses read-only data to create summaries you request.
+        NSPhotoLibraryUsageDescription: SoulNest lets you choose photos to share with your assistant and save images you explicitly select.
+        NSRemindersFullAccessUsageDescription: SoulNest uses your reminders to list, add, and complete tasks when you enable reminders access.
+        NSSpeechRecognitionUsageDescription: SoulNest uses on-device speech recognition for talk mode and voice wake.
+
+  OpenClawShareExtension:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Share
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.share
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.share
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.share
+    info:
+      properties:
+        CFBundleDisplayName: SoulNest Share
+
+  OpenClawActivityWidget:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest Activity
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.activitywidget
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.activitywidget
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.activitywidget
+    info:
+      properties:
+        CFBundleDisplayName: SoulNest Activity
+
+  OpenClawWatchApp:
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: SoulNest
+        OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest
+        PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.watchkitapp
+      configs:
+        Debug:
+          OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest.debug
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.debug.watchkitapp
+        Release:
+          OPENCLAW_COMPANION_APP_BUNDLE_ID: com.wildenstudio.soulnest
+          PRODUCT_BUNDLE_IDENTIFIER: com.wildenstudio.soulnest.watchkitapp
+    info:
+      properties:
+        CFBundleDisplayName: SoulNest
+        NSLocalNetworkUsageDescription: SoulNest connects this Apple Watch to your OpenClaw Gateway on trusted local networks.

@@ -47,6 +47,45 @@ Shortcut command (same flow + open project):
 pnpm ios:open
 ```
 
+## SoulNest Companion Tests and CI
+
+The SoulNest companion core (agent profile, conversation session mapping, and
+session key isolation) is protected by focused unit tests. They run on every
+SoulNest iOS PR through `.github/workflows/soulnest-ios.yml` without private
+signing credentials or a real Gateway.
+
+Run the SoulNest core tests locally:
+
+```bash
+# From the repo root; generates the project first if OpenClaw.xcodeproj is missing.
+pnpm ios:gen
+cd apps/ios
+xcodebuild \
+  -project OpenClaw.xcodeproj \
+  -scheme OpenClaw \
+  -configuration Debug \
+  -destination "platform=iOS Simulator,name=iPhone 17" \
+  -only-testing:OpenClawTests/SessionKeyTests \
+  -only-testing:OpenClawTests/SoulNestAgentProfileTests \
+  -only-testing:OpenClawTests/SoulNestConversationSessionStoreTests \
+  test
+```
+
+Run the full iOS unit test suite instead (slower):
+
+```bash
+cd apps/ios
+xcodebuild \
+  -project OpenClaw.xcodeproj \
+  -scheme OpenClaw \
+  -configuration Debug \
+  -destination "platform=iOS Simulator,name=iPhone 17" \
+  test
+```
+
+Swift formatting and lint use the repository tooling:
+`scripts/format-swift.sh ios` and `scripts/lint-swift.sh ios`.
+
 ## App Store Release Flow
 
 Prereqs:
